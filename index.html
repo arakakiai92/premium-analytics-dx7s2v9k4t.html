@@ -7,7 +7,14 @@
     
     <link rel="icon" type="image/png" href="favicon.png?v=2026">
     <link rel="apple-touch-icon" href="favicon.png?v=2026">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-BEVMZ4DBNE"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
 
+      gtag('config', 'G-BEVMZ4DBNE');
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -415,13 +422,44 @@
             }
         };
 
-        function downloadChart(canvasId, title) {
+       function downloadChart(canvasId, title) {
             const chart = charts[canvasId];
             if (!chart) return;
+
+            const originalCanvas = chart.canvas;
             
+            // 裏側で画像合成用の新しいCanvas（画用紙）を作成
+            const newCanvas = document.createElement('canvas');
+            const ctx = newCanvas.getContext('2d');
+            
+            // Retina等の高解像度ディスプレイで文字がぼやけないようスケールを計算
+            const scale = originalCanvas.width / (originalCanvas.clientWidth || 1);
+            const titleHeight = 55 * scale; 
+            
+            // 新しいキャンバスのサイズを設定（元のグラフの高さ ＋ タイトル用の余白）
+            newCanvas.width = originalCanvas.width;
+            newCanvas.height = originalCanvas.height + titleHeight;
+            
+            // 1. 全体を白背景で塗りつぶす
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, newCanvas.width, newCanvas.height);
+            
+            // 2. 上部の余白にタイトルを描画する
+            ctx.fillStyle = '#4b5563'; // Tailwindの text-gray-600 相当の色
+            ctx.font = `bold ${18 * scale}px sans-serif`; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const cleanTitle = title.replace(/_/g, ' '); // アンダーバーをスペースに変換
+            ctx.fillText(cleanTitle, newCanvas.width / 2, titleHeight / 2); 
+            
+            // 3. タイトルの下に、元のグラフをそのままコピーして貼り付け
+            ctx.drawImage(originalCanvas, 0, titleHeight);
+            
+            // 保存処理
             const now = new Date();
             const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-            const imageURI = chart.toBase64Image();
+            const imageURI = newCanvas.toDataURL('image/png');
             
             const link = document.createElement('a');
             link.download = `${title}_${dateStr}.png`;
@@ -430,7 +468,6 @@
             link.click();
             document.body.removeChild(link);
         }
-
         function createChart(canvasId, type, labels, data, label, colors, extraOptions = {}, countData = null) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             if (charts[canvasId]) charts[canvasId].destroy();
