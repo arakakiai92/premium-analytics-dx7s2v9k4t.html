@@ -12,6 +12,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
     <style>
         /* 背景はクリーンな白固定 */
         body { background-color: #ffffff; font-family: sans-serif; }
@@ -39,8 +40,16 @@
     
     <main class="p-4 max-w-6xl mx-auto space-y-6">
         
-        <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 space-y-4">
-            <div class="flex flex-col gap-4">
+        <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 space-y-4 relative">
+            <div id="cacheStatusArea" class="hidden absolute top-4 right-4 flex items-center gap-3">
+                <span class="bg-green-100 text-green-800 text-[10px] md:text-xs font-bold px-2 py-1 rounded shadow-sm">
+                    💾 前回のデータを自動復元しました
+                </span>
+                <button onclick="clearCache()" class="text-[10px] md:text-xs font-bold text-red-500 hover:text-red-700 underline transition">
+                    🗑️ リセット
+                </button>
+            </div>
+            <div class="flex flex-col gap-4 mt-8 md:mt-4">
                 <div>
                     <label class="block mb-2 text-sm font-bold text-gray-700">1. CSVファイルを一括選択:</label>
                     <input type="file" id="csvFileInput" multiple accept=".csv" class="block w-full text-sm text-gray-500
@@ -252,7 +261,7 @@
     </main>
 
     <footer class="max-w-6xl mx-auto px-4 py-6 text-xs text-gray-400 border-t border-gray-100 mt-12 flex flex-col sm:flex-row justify-end items-center sm:items-end gap-2">
-        <p class="leading-none pb-0.5">© 2026 <a href="https://store.line.me/search/ja?q=arakakiai" target="_blank" rel="noopener noreferrer" class="text-[#00C300] hover:text-[#009900] transition font-bold no-underline">ARAKAKIAIworks</a>. All Rights Reserved.<a href="https://note.com/arakakiai_works"  target="_blank">🗒️</a></a></p>
+        <p class="leading-none pb-0.5">© 2026 <a href="https://store.line.me/search/ja?q=arakakiai" target="_blank" rel="noopener noreferrer" class="text-[#00C300] hover:text-[#009900] transition font-bold no-underline">ARAKAKIAIworks</a>. All Rights Reserved.<a href="https://note.com/arakakiai_works" target="_blank">🗒️</a></p>
         <img src="bottom-right.png" alt="シーサーロゴ" class="h-9 w-auto object-contain block">
     </footer>
 
@@ -373,7 +382,6 @@
             }
         };
 
-        // ★追加：月別推移グラフの右端に合計を赤字で出すプラグイン
         const stackedTotalPlugin = {
             id: 'stackedTotalPlugin',
             afterDatasetsDraw: (chart) => {
@@ -382,7 +390,7 @@
                 const { ctx, scales: { x }, data } = chart;
                 ctx.save();
                 ctx.font = 'bold 12px sans-serif';
-                ctx.fillStyle = '#EF4444'; // 赤色
+                ctx.fillStyle = '#EF4444'; 
                 ctx.textBaseline = 'middle';
                 ctx.textAlign = 'left';
 
@@ -481,6 +489,28 @@
             charts[canvasId] = new Chart(ctx, config);
         }
 
+        function clearCache() {
+            if (confirm("ブラウザに記憶されている売上データをすべて消去して、初期状態に戻しますか？")) {
+                localforage.clear().then(() => {
+                    location.reload();
+                });
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const cachedData = await localforage.getItem('lineSalesData');
+                if (cachedData && cachedData.length > 0) {
+                    globalData = cachedData;
+                    setupFilters();
+                    renderDashboard();
+                    document.getElementById('cacheStatusArea').classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error("データの復元に失敗しました", err);
+            }
+        });
+
         fileInput.addEventListener('change', (event) => {
             const files = event.target.files;
             if (files.length === 0) return;
@@ -497,8 +527,10 @@
                         filesRead++;
                         if (filesRead === files.length) {
                             globalData = parsedData;
+                            localforage.setItem('lineSalesData', globalData);
                             setupFilters();
                             renderDashboard();
+                            document.getElementById('cacheStatusArea').classList.remove('hidden');
                         }
                     }
                 });
@@ -807,7 +839,7 @@
                     responsive: true,
                     maintainAspectRatio: false,
                     layout: {
-                        padding: { right: 80 } // ★赤文字が切れないように右に余白を追加
+                        padding: { right: 80 } 
                     },
                     scales: {
                         x: { stacked: (targetMonthlyCat === 'ALL'), beginAtZero: true }, 
