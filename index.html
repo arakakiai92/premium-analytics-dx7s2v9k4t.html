@@ -116,6 +116,16 @@
                 <p class="text-sm md:text-base font-bold text-gray-800 mt-1 truncate" id="kpiTopItem">-</p>
             </div>
         </div>
+        
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+            <div class="flex justify-between items-center border-b pb-2 mb-4">
+                <h2 class="text-sm md:text-base font-bold text-gray-700">🚀 前月比 急上昇アイテム (Top 5)</h2>
+            </div>
+            <div id="trendArea" class="space-y-2">
+                <p class="text-xs text-gray-400">※CSVデータを読み込むと、前月から売上が伸びているアイテムがここに表示されます。</p>
+            </div>
+        </div>
+        
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
             
@@ -254,6 +264,17 @@
                 </div>
                 <div class="chart-container"><canvas id="targetMonthRankChart"></canvas></div>
             </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🇯🇵 国内 vs 🌍 海外 売上推移</h2>
+                    <button onclick="downloadChart('jpVsOverseasChart', '国内_海外_売上推移')" class="text-xs font-bold text-[#00C300] hover:text-[#009900] active:scale-95 transition">
+                        📥 画像保存
+                    </button>
+                </div>
+                <div class="chart-container"><canvas id="jpVsOverseasChart"></canvas></div>
+            </div>
+
+            
 
             <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
                 <h2 class="text-sm md:text-base font-bold mb-4 text-gray-700 border-b pb-2 flex items-center gap-2">
@@ -355,7 +376,7 @@
         const itemTrackSelect = document.getElementById('itemTrackSelect'); 
         const targetMonthRankSelect = document.getElementById('targetMonthRankSelect'); 
         const targetRevenueInput = document.getElementById('targetRevenueInput'); 
-        const currentRevenueInput = document.getElementById('currentRevenueInput'); 
+        const currentRevenueInput = document.getElementById('currentRevenueInput');
         
         let globalData = []; 
         let availableMonths = [];
@@ -369,7 +390,7 @@
         let currentItemsCountByCountry = {}; 
         let globalItemCountByMonthAndTitle = {}; 
         let globalItemTypes = {}; 
-        let globalMonthlyTotal = {}; 
+        let globalMonthlyTotal = {};
 
         const typeColors = {
             "Sticker": { bg: "rgba(236, 72, 153, 0.8)", border: "rgba(236, 72, 153, 1)" }, 
@@ -798,6 +819,9 @@
             const itemsCount = {};
             const countries = {};
             const types = {};
+
+            const monthlyJpRev = {};
+            const monthlyOverseasRev = {};
             
             currentItemsRevByType = {};
             currentItemsRevByCountry = {}; 
@@ -823,9 +847,14 @@
                 const title = row["Item Title"] || "不明";
                 const country = row["Country of Sale"] || "不明";
                 const type = row["Type"] || "不明";
+                
+                if (country === 'JP') {
+                    monthlyJpRev[month] = (monthlyJpRev[month] || 0) + revenue;
+                } else {
+                    monthlyOverseasRev[month] = (monthlyOverseasRev[month] || 0) + revenue;
+                }
 
                 globalItemTypes[title] = type; 
-
                 totalRevenue += revenue;
                 totalSalesCount += count;
 
@@ -928,85 +957,85 @@
                 plugins: [whiteBackgroundPlugin, stackedTotalPlugin]
             });
 
-            const avgContainer = document.getElementById('monthlyAverageContainer');
-            if (avgContainer) {
-                if (sortedMonths.length > 0) {
-                    avgContainer.classList.remove('hidden');
-                    avgContainer.innerHTML = '<div class="w-full text-xs text-gray-500 font-bold mb-1">⏱️ 選択カテゴリの1日平均売上 & 前月比成長率:</div>';
-                    sortedMonths.forEach((m, idx) => {
-                        const matches = m.match(/\d+/g);
-                        let daysInMonth = 30; 
-                        if (matches && matches.length >= 2) {
-                            const year = parseInt(matches[0], 10);
-                            const monthStr = parseInt(matches[1], 10);
-                            daysInMonth = new Date(year, monthStr, 0).getDate();
-                        }
-                        
-                        let targetMonthlyRevenue = (targetMonthlyCat === 'ALL') ? (monthlyTotal[m] || 0) : (monthlyByType[m][targetMonthlyCat] || 0);
-                        const dailyAvg = Math.floor(targetMonthlyRevenue / daysInMonth);
-                        
-                        let momText = '';
-                        if (idx > 0) {
-                            const prevM = sortedMonths[idx - 1];
-                            let prevMonthlyRevenue = (targetMonthlyCat === 'ALL') ? (monthlyTotal[prevM] || 0) : (monthlyByType[prevM][targetMonthlyCat] || 0);
-                            if (prevMonthlyRevenue > 0) {
-                                const momPercent = ((targetMonthlyRevenue - prevMonthlyRevenue) / prevMonthlyRevenue) * 100;
-                                const sign = momPercent >= 0 ? '▲' : '▼';
-                                const colorClass = momPercent >= 0 ? 'text-emerald-600' : 'text-red-500';
-                                momText = `<span class="${colorClass} ml-2 text-[10px] font-black">${sign}${Math.abs(momPercent).toFixed(1)}%</span>`;
-                            } else {
-                                momText = `<span class="text-gray-400 ml-2 text-[10px] font-normal">(前月データなし)</span>`;
-                            }
-                        }
-
-                        const badge = document.createElement('div');
-                        badge.className = 'bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-lg flex items-center shadow-sm';
-                        badge.innerHTML = `<span class="text-gray-400 font-normal mr-2">${m}</span> <strong class="text-gray-700">¥${dailyAvg.toLocaleString()}</strong><span class="text-[10px] text-gray-400 font-normal">/日</span>${momText}`;
-                        avgContainer.appendChild(badge);
-                    });
-                } else {
-                    avgContainer.classList.add('hidden');
-                }
-            }
-
+            // チャート描画続き
             const sortedItemsRev = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 10);
             const itemRevBgColors = sortedItemsRev.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].bg : defaultColor.bg);
             const itemRevBorderColors = sortedItemsRev.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].border : defaultColor.border);
-            
-            createChart('itemChart', 'bar', sortedItemsRev, sortedItemsRev.map(i => itemsRev[i]), '収益 (円)', 
-                { bg: itemRevBgColors, border: itemRevBorderColors }, { indexAxis: 'y', layout: { padding: { right: 50 } } });
+            createChart('itemChart', 'bar', sortedItemsRev, sortedItemsRev.map(i => itemsRev[i]), '収益 (円)', { bg: itemRevBgColors, border: itemRevBorderColors }, { indexAxis: 'y', layout: { padding: { right: 50 } } });
 
             const sortedItemsCount = Object.keys(itemsCount).sort((a, b) => itemsCount[b] - itemsCount[a]).slice(0, 10);
             const itemCountBgColors = sortedItemsCount.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].bg : defaultColor.bg);
             const itemCountBorderColors = sortedItemsCount.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].border : defaultColor.border);
-
-            createChart('salesCountChart', 'bar', sortedItemsCount, sortedItemsCount.map(i => itemsCount[i]), '販売数', 
-                { bg: itemCountBgColors, border: itemCountBorderColors }, { indexAxis: 'y', layout: { padding: { right: 40 } } });
+            createChart('salesCountChart', 'bar', sortedItemsCount, sortedItemsCount.map(i => itemsCount[i]), '販売数', { bg: itemCountBgColors, border: itemCountBorderColors }, { indexAxis: 'y', layout: { padding: { right: 40 } } });
 
             const countryLabels = Object.keys(countries).sort((a, b) => countries[b] - countries[a]);
-            createChart('countryChart', 'doughnut', countryLabels, countryLabels.map(c => countries[c]), '国別', 
-                { bg: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'], border: '#ffffff' });
+            createChart('countryChart', 'doughnut', countryLabels, countryLabels.map(c => countries[c]), '国別', { bg: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'], border: '#ffffff' });
 
             const typeLabels = Object.keys(types).sort((a, b) => types[b] - types[a]);
-            createChart('typeChart', 'pie', typeLabels, typeLabels.map(t => types[t]), '種類別', 
-                { bg: ['#8B5CF6', '#EC4899', '#6366F1'], border: '#ffffff' });
+            createChart('typeChart', 'pie', typeLabels, typeLabels.map(t => types[t]), '種類別', { bg: ['#8B5CF6', '#EC4899', '#6366F1'], border: '#ffffff' });
 
             const sortedCountries = Object.keys(countries).sort((a, b) => countries[b] - countries[a]).slice(0, 10);
-            createChart('countryRankChart', 'bar', sortedCountries, sortedCountries.map(c => countries[c]), '収益 (円)', 
-                { bg: 'rgba(59, 130, 246, 0.7)', border: 'rgba(59, 130, 246, 1)' }, { indexAxis: 'y', layout: { padding: { right: 50 } } });
+            createChart('countryRankChart', 'bar', sortedCountries, sortedCountries.map(c => countries[c]), '収益 (円)', { bg: 'rgba(59, 130, 246, 0.7)', border: 'rgba(59, 130, 246, 1)' }, { indexAxis: 'y', layout: { padding: { right: 50 } } });
 
             const catLabels = Object.keys(types).sort((a, b) => types[b] - types[a]);
-            const catValues = catLabels.map(t => types[t]);
-            const catColors = catLabels.map(label => typeColors[label] ? typeColors[label].bg : 'rgba(59, 130, 246, 0.7)');
-            const catBorders = catLabels.map(label => typeColors[label] ? typeColors[label].border : 'rgba(59, 130, 246, 1)');
-
-            createChart('categorySummaryChart', 'bar', catLabels, catValues, 'カテゴリ総売上', 
-                { bg: catColors, border: catBorders }, { indexAxis: 'y', layout: { padding: { right: 60 } } });
+            createChart('categorySummaryChart', 'bar', catLabels, catLabels.map(t => types[t]), 'カテゴリ総売上', { bg: catLabels.map(l => typeColors[l] ? typeColors[l].bg : 'rgba(59, 130, 246, 0.7)'), border: catLabels.map(l => typeColors[l] ? typeColors[l].border : 'rgba(59, 130, 246, 1)') }, { indexAxis: 'y', layout: { padding: { right: 60 } } });
 
             drawCategoryRankChart();
             drawCountryItemRankChart(); 
             drawItemTrackChart(); 
-            drawTargetMonthRankChart(); 
+            drawTargetMonthRankChart();
+
+            // 国内 vs 海外チャートの描画
+            const jpOvLabels = Object.keys(monthlyTotal).sort();
+            const dataJp = jpOvLabels.map(m => monthlyJpRev[m] || 0);
+            const dataOverseas = jpOvLabels.map(m => monthlyOverseasRev[m] || 0);
+
+            const ctxJpOv = document.getElementById('jpVsOverseasChart').getContext('2d');
+            if (charts['jpVsOverseasChart']) charts['jpVsOverseasChart'].destroy();
+            charts['jpVsOverseasChart'] = new Chart(ctxJpOv, {
+                type: 'bar',
+                data: {
+                    labels: jpOvLabels,
+                    datasets: [
+                        { label: '日本 (JP)', data: dataJp, backgroundColor: 'rgba(59, 130, 246, 0.8)', borderColor: 'rgba(59, 130, 246, 1)', borderWidth: 1 },
+                        { label: '海外 (Overseas)', data: dataOverseas, backgroundColor: 'rgba(16, 185, 129, 0.8)', borderColor: 'rgba(16, 185, 129, 1)', borderWidth: 1 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+                    plugins: { datalabels: { display: false } }
+                },
+                plugins: [whiteBackgroundPlugin]
+            });
+
+            // トレンド分析
+            const trendArea = document.getElementById('trendArea');
+            trendArea.innerHTML = '';
+            const sortedMonthsTrend = Object.keys(globalMonthlyTotal).sort();
+            if (sortedMonthsTrend.length >= 2) {
+                const latestMonth = sortedMonthsTrend[sortedMonthsTrend.length - 1];
+                const prevMonth = sortedMonthsTrend[sortedMonthsTrend.length - 2];
+                const trends = [];
+                Object.keys(itemsRev).forEach(title => {
+                    const latestRev = globalItemRevByMonthAndTitle[latestMonth]?.[title] || 0;
+                    const prevRev = globalItemRevByMonthAndTitle[prevMonth]?.[title] || 0;
+                    if (latestRev > 0) {
+                        const diff = latestRev - prevRev;
+                        trends.push({ title, latestRev, diff });
+                    }
+                });
+                trends.sort((a, b) => b.diff - a.diff).slice(0, 5).forEach(item => {
+                    const sign = item.diff >= 0 ? '▲' : '▼';
+                    const colorClass = item.diff >= 0 ? 'text-emerald-600' : 'text-red-500';
+                    const row = document.createElement('div');
+                    row.className = 'flex justify-between items-center text-xs md:text-sm font-bold p-2 bg-gray-50 rounded-lg';
+                    row.innerHTML = `<span class="truncate max-w-[60%]">${item.title}</span><span class="${colorClass}">${sign}¥${Math.abs(item.diff).toLocaleString()}</span>`;
+                    trendArea.appendChild(row);
+                });
+            } else {
+                trendArea.innerHTML = '<p class="text-xs text-gray-400">※2ヶ月分以上のデータを読み込むと分析結果が表示されます。</p>';
+            }
             generateAIComment(); 
         }
 
@@ -1073,7 +1102,7 @@
 
             createChart('targetMonthRankChart', 'bar', sortedItems, dataRev, '収益 (円)', { bg: bgColors1, border: borderColors1 }, { indexAxis: 'y', layout: { padding: { right: 85 } } }, dataCount);
         }
-
+        
         function updateTargetMeter() {
             const targetValue = parseFloat(targetRevenueInput.value) || 0;
             const currentValue = parseFloat(currentRevenueInput.value) || 0;
