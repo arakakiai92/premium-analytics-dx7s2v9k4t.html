@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>LINE売上分析アプリPro</title>
+    
+    <link rel="icon" type="image/png" href="favicon.png?v=2026">
+    <link rel="apple-touch-icon" href="favicon.png?v=2026">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-BEVMZ4DBNE"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      gtag('config', 'G-BEVMZ4DBNE');
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <style>
+        /* 背景はクリーンな白固定 */
+        body { background-color: #ffffff; font-family: sans-serif; }
+        .chart-container { position: relative; height: 250px; width: 100%; }
+        .monthly-chart-container { position: relative; height: 350px; width: 100%; }
+        @media (min-width: 768px) { 
+            .chart-container { height: 300px; } 
+            .monthly-chart-container { height: 400px; }
+        }
+    </style>
+</head>
+<body class="text-gray-800 pb-4">
+
+    <header class="bg-[#00C300] text-white shadow-md sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto flex items-center justify-between px-4">
+            <div class="flex items-center">
+                <img src="top-left.png" alt="シーサーアイコン" class="h-16 w-auto block object-contain">
+                <h1 class="text-lg md:text-xl font-bold ml-3 py-4">LINE Sales Analytics Pro</h1>
+            </div>
+            <a href="https://aalinezipmaker.netlify.app/" target="_blank" rel="noopener noreferrer" class="text-xs md:text-sm font-bold text-white hover:text-green-100 transition no-underline">
+                🔗スタンプ/絵文字 ZIPメーカー
+            </a>
+        </div>
+    </header>
+    
+    <main class="p-4 max-w-6xl mx-auto space-y-6">
+        
+        <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 space-y-4 relative">
+            <div id="cacheStatusArea" class="hidden absolute top-4 right-4 flex items-center gap-3">
+                <span class="bg-green-100 text-green-800 text-[10px] md:text-xs font-bold px-2 py-1 rounded shadow-sm">
+                    💾 前回のデータを自動復元しました
+                </span>
+                <button onclick="clearCache()" class="text-[10px] md:text-xs font-bold text-red-500 hover:text-red-700 underline transition">
+                    🗑️ リセット
+                </button>
+            </div>
+            <div class="flex flex-col gap-4 mt-8 md:mt-4">
+                <div>
+                    <label class="block mb-2 text-sm font-bold text-gray-700">1. CSVファイルを一括選択:</label>
+                    <input type="file" id="csvFileInput" multiple accept=".csv" class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0
+                        file:text-sm file:font-bold file:bg-green-50 file:text-[#00C300]
+                        hover:file:bg-green-100 cursor-pointer transition" />
+                </div>
+                
+                <div id="yearFilterSection" class="hidden">
+                    <label class="block mb-2 text-sm font-bold text-gray-700">2. 年単位で一括選択 / 解除:</label>
+                    <div id="yearFilterContainer" class="flex flex-wrap gap-2"></div>
+                </div>
+                
+                <div>
+                    <label class="block mb-2 text-sm font-bold text-gray-700">3. 表示する月を選択 (複数選択可):</label>
+                    <div id="monthFilterContainer" class="flex flex-wrap gap-2">
+                        <span class="text-sm text-gray-400">※CSVを読み込むとここに月ボタンが表示されます</span>
+                    </div>
+                </div>
+
+                <div id="targetRevenueSection" class="border-t pt-4">
+                    <label class="block mb-2 text-sm font-bold text-gray-700">4. 今月の売上目標と現在の進捗を入力 (円):</label>
+                    <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap">
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <span class="text-xs text-gray-500 min-w-[60px]">目標金額:</span>
+                            <input type="number" id="targetRevenueInput" value="50000" class="p-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 focus:ring-[#00C300] focus:border-[#00C300] w-full sm:w-32" placeholder="例: 50000">
+                        </div>
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <span class="text-xs text-gray-500 min-w-[60px]">現在の売上:</span>
+                            <input type="number" id="currentRevenueInput" value="0" class="p-2 border border-gray-300 rounded-lg text-sm font-bold text-gray-700 focus:ring-[#00C300] focus:border-[#00C300] w-full sm:w-32" placeholder="例: 15000">
+                        </div>
+                        <div id="targetProgressContainer" class="w-full sm:w-64 bg-gray-100 rounded-full h-5 relative overflow-hidden border">
+                            <div id="targetProgressBar" class="bg-[#00C300] h-full transition-all duration-500" style="width: 0%"></div>
+                            <span id="targetProgressText" class="absolute inset-0 flex items-center justify-center text-xs font-black text-gray-700">0%</span>
+                        </div>
+                        <p id="targetMessage" class="text-xs font-bold text-gray-600 min-w-[200px]"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-[#00C300]">
+                <p class="text-xs text-gray-500 font-bold">総収益 (分配金総額)</p>
+                <p class="text-xl md:text-2xl font-black text-gray-800 mt-1" id="kpiRevenue">¥0</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-blue-500">
+                <p class="text-xs text-gray-500 font-bold">期間中累計推定手取り (税引後振込額)</p>
+                <p class="text-xl md:text-2xl font-black text-blue-600 mt-1" id="kpiNetRevenue">¥0</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-green-500">
+                <p class="text-xs text-gray-500 font-bold">総販売数 (件)</p>
+                <p class="text-xl md:text-2xl font-black text-gray-800 mt-1" id="kpiSalesCount">0</p>
+            </div>
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-yellow-500">
+                <p class="text-xs text-gray-500 font-bold">No.1 売上アイテム</p>
+                <p class="text-sm md:text-base font-bold text-gray-800 mt-1 truncate" id="kpiTopItem">-</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+            
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">📅 月別収益推移</h2>
+                    <div class="flex items-center gap-3">
+                        <button onclick="downloadChart('monthlyChart', '月別収益推移')" class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
+                            📥 画像保存
+                        </button>
+                        <select id="monthlyCategorySelect" class="p-1.5 border border-gray-300 rounded-lg bg-gray-50 text-xs font-bold text-gray-700 cursor-pointer focus:ring-[#00C300] focus:border-[#00C300]">
+                            <option value="ALL">すべてのカテゴリ (積み上げ)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div id="monthlyAverageContainer" class="flex flex-wrap gap-2 mb-4 text-xs font-bold text-gray-600 hidden">
+                </div>
+
+                <div class="monthly-chart-container"><canvas id="monthlyChart"></canvas></div>
+            </div>
+            
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">👑 全体収益ランキング (Top 10)</h2>
+                    <button onclick="downloadChart('itemChart', '全体収益ランキング')" class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
+                        📥 画像保存
+                    </button>
+                </div>
+                <div class="chart-container"><canvas id="itemChart"></canvas></div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🛍️ 全体販売数ランキング (Top 10)</h2>
+                    <button onclick="downloadChart('salesCountChart', '全体販売数ランキング')" class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
+                        📥 画像保存
+                    </button>
+                </div>
+                <div class="chart-container"><canvas id="salesCountChart"></canvas></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 lg:col-span-2">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <div class="flex justify-between items-center border-b pb-2 mb-4">
+                        <h2 class="text-xs md:text-sm font-bold text-gray-700">🌍 販売国シェア</h2>
+                        <button onclick="downloadChart('countryChart', '販売国シェア')" class="text-xs font-bold text-[#00C300] hover:text-[#009900] active:scale-95 transition">
+                            📥 保存
+                        </button>
+                    </div>
+                    <div class="chart-container" style="height: 300px;"><canvas id="countryChart"></canvas></div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                    <div class="flex justify-between items-center border-b pb-2 mb-4">
+                        <h2 class="text-xs md:text-sm font-bold text-gray-700">🎨 種類シェア</h2>
+                        <button onclick="downloadChart('typeChart', '種類別シェア')" class="text-xs font-bold text-[#00C300] hover:text-[#009900] active:scale-95 transition">
+                            📥 保存
+                        </button>
+                    </div>
+                    <div class="chart-container" style="height: 300px;"><canvas id="typeChart"></canvas></div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🌏 国別 総売上ランキング</h2>
+                    <button onclick="downloadChart('countryRankChart', '国別売上ランキング')" class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
+                        📥 画像保存
+                    </button>
+                </div>
+                <div class="chart-container"><canvas id="countryRankChart"></canvas></div>
+            </div>
+            
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">📊 カテゴリ別 総売上比較</h2>
+                    <button onclick="downloadChart('categorySummaryChart', 'カテゴリ別総売上比較')" class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
+                        📥 画像保存
+                    </button>
+                </div>
+                <div class="chart-container" style="height: 180px;"><canvas id="categorySummaryChart"></canvas></div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🗺️ 国別詳細 アイテム売上ランキング (Top 10)</h2>
+                    <div class="flex items-center gap-3">
+                        <button onclick="downloadChart('countryItemRankChart', '国別詳細アイテムランキング_' + document.getElementById('countryItemRankSelect').value)" class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
+                            📥 画像保存
+                        </button>
+                        <select id="countryItemRankSelect" class="p-1.5 border border-gray-300 rounded-lg bg-gray-50 text-xs font-bold text-gray-700 cursor-pointer focus:ring-[#00C300] focus:border-[#00C300]">
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container"><canvas id="countryItemRankChart"></canvas></div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🏆 カテゴリ別 売上ランキング (Top 10)</h2>
+                    <div class="flex items-center gap-3">
+                        <button onclick="downloadChart('categoryRankChart', 'カテゴリ別売上ランキング_' + document.getElementById('categoryRankSelect').value)" class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
+                            📥 画像保存
+                        </button>
+                        <select id="categoryRankSelect" class="p-1.5 border border-gray-300 rounded-lg bg-gray-50 text-xs font-bold text-gray-700 cursor-pointer focus:ring-[#00C300] focus:border-[#00C300]">
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container"><canvas id="categoryRankChart"></canvas></div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🎯 特定アイテムの売上推移 (ウォッチリスト)</h2>
+                    <div class="flex items-center gap-3">
+                        <button onclick="downloadChart('itemTrackChart', '特定アイテム売上推移_' + document.getElementById('itemTrackSelect').value)" class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
+                            📥 画像保存
+                        </button>
+                        <select id="itemTrackSelect" class="p-1.5 border border-gray-300 rounded-lg bg-gray-50 text-xs font-bold text-gray-700 cursor-pointer focus:ring-[#00C300] focus:border-[#00C300] max-w-[180px] sm:max-w-xs truncate">
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container"><canvas id="itemTrackChart"></canvas></div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🗓️ 指定月の売上ランキング (Top 10)</h2>
+                    <div class="flex items-center gap-3">
+                        <button onclick="downloadChart('targetMonthRankChart', '指定月売上ランキング_' + document.getElementById('targetMonthRankSelect').value)" class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
+                            📥 画像保存
+                        </button>
+                        <select id="targetMonthRankSelect" class="p-1.5 border border-gray-300 rounded-lg bg-gray-50 text-xs font-bold text-gray-700 cursor-pointer focus:ring-[#00C300] focus:border-[#00C300]">
+                        </select>
+                    </div>
+                </div>
+                <div class="chart-container"><canvas id="targetMonthRankChart"></canvas></div>
+            </div>
+
+            <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                <h2 class="text-sm md:text-base font-bold mb-4 text-gray-700 border-b pb-2 flex items-center gap-2">
+                    🤖 AI 売上簡易 analysis レポート
+                </h2>
+                <div id="aiAnalysisComment" class="text-sm text-gray-600 leading-relaxed">
+                    <p class="text-gray-400">※CSVファイルを読み込むと、ここにデータの集計結果に基づいた詳細な分析レポートが自動生成されます。</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <footer class="max-w-6xl mx-auto px-4 py-6 text-xs text-gray-400 border-t border-gray-100 mt-12 flex flex-col sm:flex-row justify-end items-center sm:items-end gap-2">
+        <p class="leading-none pb-0.5">© 2026 <a href="https://store.line.me/search/ja?q=arakakiai" target="_blank" rel="noopener noreferrer" class="text-[#00C300] hover:text-[#009900] transition font-bold no-underline">ARAKAKIAIworks</a>. All Rights Reserved.<a href="https://note.com/arakakiai_works" target="_blank">🗒️</a></p>
+        <img src="bottom-right.png" alt="シーサーロゴ" class="h-9 w-auto object-contain block">
+    </footer>
+
+    <script>
+        const pieLabelsLinePlugin = {
+            id: 'pieLabelsLine',
+            afterDraw: (chart) => {
+                const { ctx, config } = chart;
+                if (config.type !== 'pie' && config.type !== 'doughnut') return;
+                
+                chart.data.datasets.forEach((dataset, datasetIdx) => {
+                    const meta = chart.getDatasetMeta(datasetIdx);
+                    if (meta.hidden) return;
+
+                    const total = dataset.data.reduce((a, b) => a + (b || 0), 0);
+                    const drawnYPositionsRight = [];
+                    const drawnYPositionsLeft = [];
+
+                    meta.data.forEach((element, index) => {
+                        const value = dataset.data[index];
+                        if (!value || value === 0) return;
+                        if (!element || typeof element.startAngle === 'undefined') return;
+
+                        if (value / total < 0.015) return;
+
+                        const midAngle = element.startAngle + (element.endAngle - element.startAngle) / 2;
+                        const cos = Math.cos(midAngle);
+                        const sin = Math.sin(midAngle);
+
+                        const radius = element.outerRadius || 0;
+                        const x = element.x || 0;
+                        const y = element.y || 0;
+
+                        const startX = x + radius * cos;
+                        const startY = y + radius * sin;
+
+                        let breakX = x + (radius + 15) * cos;
+                        let breakY = y + (radius + 15) * sin;
+
+                        const isRight = cos >= 0;
+                        let endX = breakX + (isRight ? 15 : -15);
+                        let endY = breakY;
+
+                        const MIN_DISTANCE = 16;
+                        const sameSideYPositions = isRight ? drawnYPositionsRight : drawnYPositionsLeft;
+                        for (const prevY of sameSideYPositions) {
+                            if (Math.abs(endY - prevY) < MIN_DISTANCE) {
+                                endY += (sin >= 0 ? MIN_DISTANCE : -MIN_DISTANCE);
+                                breakY = endY; 
+                            }
+                        }
+                        if (isRight) drawnYPositionsRight.push(endY);
+                        else drawnYPositionsLeft.push(endY);
+
+                        ctx.save();
+                        ctx.beginPath();
+                        ctx.moveTo(startX, startY);
+                        ctx.lineTo(breakX, breakY);
+                        ctx.lineTo(endX, endY);
+                        ctx.strokeStyle = '#4b5563'; 
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+
+                        ctx.fillStyle = '#000000';
+                        ctx.font = 'bold 11px sans-serif';
+                        ctx.textBaseline = 'middle';
+                        ctx.textAlign = isRight ? 'left' : 'right';
+                        
+                        const textX = endX + (isRight ? 4 : -4);
+                        const formattedValue = '¥' + Math.floor(value).toLocaleString();
+                        ctx.fillText(formattedValue, textX, endY);
+                        ctx.restore();
+                    });
+                });
+            }
+        };
+
+        Chart.register(ChartDataLabels, pieLabelsLinePlugin);
+
+        const fileInput = document.getElementById('csvFileInput');
+        const monthlyCategorySelect = document.getElementById('monthlyCategorySelect');
+        const categoryRankSelect = document.getElementById('categoryRankSelect');
+        const countryItemRankSelect = document.getElementById('countryItemRankSelect'); 
+        const itemTrackSelect = document.getElementById('itemTrackSelect'); 
+        const targetMonthRankSelect = document.getElementById('targetMonthRankSelect'); 
+        const targetRevenueInput = document.getElementById('targetRevenueInput'); 
+        const currentRevenueInput = document.getElementById('currentRevenueInput'); 
+        
+        let globalData = []; 
+        let availableMonths = [];
+        let selectedMonths = new Set();
+        const charts = {};
+        
+        let currentItemsRevByType = {}; 
+        let currentItemsRevByCountry = {}; 
+        let globalItemRevByMonthAndTitle = {}; 
+        let currentItemsCountByType = {}; 
+        let currentItemsCountByCountry = {}; 
+        let globalItemCountByMonthAndTitle = {}; 
+        let globalItemTypes = {}; 
+        let globalMonthlyTotal = {}; 
+
+        const typeColors = {
+            "Sticker": { bg: "rgba(236, 72, 153, 0.8)", border: "rgba(236, 72, 153, 1)" }, 
+            "Emoji": { bg: "rgba(139, 92, 246, 0.8)", border: "rgba(139, 92, 246, 1)" },   
+            "Theme": { bg: "rgba(99, 102, 241, 0.8)", border: "rgba(99, 102, 241, 1)" }    
+        };
+        const defaultColor = { bg: "rgba(156, 163, 175, 0.8)", border: "rgba(156, 163, 175, 1)" };
+
+        const whiteBackgroundPlugin = {
+            id: 'whiteBackground',
+            beforeDraw: (chart) => {
+                const { ctx, width, height } = chart;
+                ctx.save();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, width, height);
+                ctx.restore();
+            }
+        };
+
+        const stackedTotalPlugin = {
+            id: 'stackedTotalPlugin',
+            afterDatasetsDraw: (chart) => {
+                if (chart.canvas.id !== 'monthlyChart') return;
+                
+                const { ctx, scales: { x }, data } = chart;
+                ctx.save();
+                ctx.font = 'bold 12px sans-serif';
+                ctx.fillStyle = '#EF4444'; 
+                ctx.textBaseline = 'middle';
+                ctx.textAlign = 'left';
+
+                const firstMeta = chart.getDatasetMeta(0);
+                if (!firstMeta) return;
+
+                data.labels.forEach((label, index) => {
+                    let total = 0;
+                    data.datasets.forEach(dataset => {
+                        if (!dataset.hidden && dataset.data[index]) {
+                            total += dataset.data[index];
+                        }
+                    });
+                    
+                    if (total > 0) {
+                        const xPos = x.getPixelForValue(total);
+                        const yPos = firstMeta.data[index].y;
+                        ctx.fillText('¥' + Math.floor(total).toLocaleString(), xPos + 8, yPos + 1);
+                    }
+                });
+                ctx.restore();
+            }
+        };
+
+       function downloadChart(canvasId, title) {
+            const chart = charts[canvasId];
+            if (!chart) return;
+
+            const originalCanvas = chart.canvas;
+            
+            // 裏側で画像合成用の新しいCanvas（画用紙）を作成
+            const newCanvas = document.createElement('canvas');
+            const ctx = newCanvas.getContext('2d');
+            
+            // Retina等の高解像度ディスプレイで文字がぼやけないようスケールを計算
+            const scale = originalCanvas.width / (originalCanvas.clientWidth || 1);
+            const titleHeight = 55 * scale; 
+            
+            // 新しいキャンバスのサイズを設定（元のグラフの高さ ＋ タイトル用の余白）
+            newCanvas.width = originalCanvas.width;
+            newCanvas.height = originalCanvas.height + titleHeight;
+            
+            // 1. 全体を白背景で塗りつぶす
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, newCanvas.width, newCanvas.height);
+            
+            // 2. 上部の余白にタイトルを描画する
+            ctx.fillStyle = '#4b5563'; // Tailwindの text-gray-600 相当の色
+            ctx.font = `bold ${18 * scale}px sans-serif`; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const cleanTitle = title.replace(/_/g, ' '); // アンダーバーをスペースに変換
+            ctx.fillText(cleanTitle, newCanvas.width / 2, titleHeight / 2); 
+            
+            // 3. タイトルの下に、元のグラフをそのままコピーして貼り付け
+            ctx.drawImage(originalCanvas, 0, titleHeight);
+            
+            // ファイル名の生成
+            const now = new Date();
+            const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+            const filename = `${title}_${dateStr}.png`;
+
+            // CanvasをBlob（ファイルデータ）に変換
+            newCanvas.toBlob(async (blob) => {
+                if (!blob) return;
+                
+                const file = new File([blob], filename, { type: 'image/png' });
+                
+                // Web Share APIがサポートされている環境（iOS Safariなど）かチェック
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: cleanTitle
+                        });
+                        // シェア成功時の処理（必要であれば）
+                    } catch (error) {
+                        // ユーザーがシェアシートを閉じた場合(AbortError)以外のエラーをキャッチ
+                        if (error.name !== 'AbortError') {
+                            console.error('シェアに失敗しました:', error);
+                            fallbackDownload(newCanvas.toDataURL('image/png'), filename);
+                        }
+                    }
+                } else {
+                    // PCやWeb Share API非対応ブラウザ向け（従来のダウンロード方式）
+                    fallbackDownload(newCanvas.toDataURL('image/png'), filename);
+                }
+            }, 'image/png');
+        }
+
+        // 従来のダウンロード方式（フォールバック用）
+        function fallbackDownload(imageURI, filename) {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = imageURI;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        function createChart(canvasId, type, labels, data, label, colors, extraOptions = {}, countData = null) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            if (charts[canvasId]) charts[canvasId].destroy();
+
+            const isPie = type === 'pie' || type === 'doughnut';
+            const isSalesCount = canvasId === 'salesCountChart';
+
+            const pluginsToUse = [whiteBackgroundPlugin];
+            if (isPie) pluginsToUse.push(pieLabelsLinePlugin); 
+
+            const config = {
+                type: type,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: colors.bg,
+                        borderColor: colors.border,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    radius: isPie ? '55%' : undefined, 
+                    layout: {
+                        padding: isPie ? { top: 20, bottom: 20, left: 20, right: 20 } : 0
+                    },
+                    plugins: { 
+                        legend: { 
+                            display: isPie,
+                            position: isPie ? 'bottom' : 'top',
+                            labels: { padding: 15, boxWidth: 12, font: { size: 11 } }
+                        },
+                        datalabels: {
+                            display: !isPie,
+                            color: '#000000', 
+                            font: { weight: 'bold', size: 10 },
+                            anchor: 'end', 
+                            align: 'end',
+                            formatter: (value, context) => {
+                                if (value === 0) return '';
+                                let text = isSalesCount ? value.toLocaleString() + '件' : '¥' + Math.floor(value).toLocaleString();
+                                if (countData && countData[context.dataIndex] !== undefined) {
+                                    text += ' / ' + countData[context.dataIndex].toLocaleString() + '件';
+                                }
+                                return text;
+                            }
+                        }
+                    },
+                    ...extraOptions
+                },
+                plugins: pluginsToUse
+            };
+            charts[canvasId] = new Chart(ctx, config);
+        }
+
+        function clearCache() {
+            if (confirm("ブラウザに記憶されている売上データをすべて消去して、初期状態に戻しますか？")) {
+                localforage.clear().then(() => {
+                    location.reload();
+                });
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const cachedData = await localforage.getItem('lineSalesData');
+                if (cachedData && cachedData.length > 0) {
+                    globalData = cachedData;
+                    setupFilters();
+                    renderDashboard();
+                    document.getElementById('cacheStatusArea').classList.remove('hidden');
+                }
+            } catch (err) {
+                console.error("データの復元に失敗しました", err);
+            }
+        });
+
+        fileInput.addEventListener('change', (event) => {
+            const files = event.target.files;
+            if (files.length === 0) return;
+
+            let parsedData = [];
+            let filesRead = 0;
+
+            Array.from(files).forEach(file => {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        parsedData = parsedData.concat(results.data);
+                        filesRead++;
+                        if (filesRead === files.length) {
+                            globalData = parsedData;
+                            localforage.setItem('lineSalesData', globalData);
+                            setupFilters();
+                            renderDashboard();
+                            document.getElementById('cacheStatusArea').classList.remove('hidden');
+                        }
+                    }
+                });
+            });
+        });
+
+        monthlyCategorySelect.addEventListener('change', () => { renderDashboard(); });
+        categoryRankSelect.addEventListener('change', () => { drawCategoryRankChart(); });
+        countryItemRankSelect.addEventListener('change', () => { drawCountryItemRankChart(); });
+        itemTrackSelect.addEventListener('change', () => { drawItemTrackChart(); }); 
+        targetMonthRankSelect.addEventListener('change', () => { drawTargetMonthRankChart(); }); 
+        
+        targetRevenueInput.addEventListener('input', updateTargetMeter);
+        currentRevenueInput.addEventListener('input', updateTargetMeter);
+
+        function setupFilters() {
+            const months = new Set();
+            const years = new Set(); 
+            const types = new Set();
+            const countriesSet = new Set(); 
+            const itemTotalRev = {}; 
+            
+            globalData.forEach(row => {
+                const dateStr = row["From (GMT+9:00)"];
+                if (dateStr) {
+                    months.add(dateStr.substring(0, 7));
+                    years.add(dateStr.substring(0, 4)); 
+                }
+                if (row["Type"]) types.add(row["Type"]);
+                if (row["Country of Sale"]) countriesSet.add(row["Country of Sale"]); 
+                if (row["Item Title"]) {
+                    const title = row["Item Title"];
+                    const revenue = parseFloat(row["Revenue Share"]) || 0;
+                    itemTotalRev[title] = (itemTotalRev[title] || 0) + revenue;
+                }
+            });
+            
+            availableMonths = Array.from(months).sort();
+            selectedMonths = new Set(availableMonths); 
+
+            const sortedYears = Array.from(years).sort();
+            const yearSection = document.getElementById('yearFilterSection');
+            const yearContainer = document.getElementById('yearFilterContainer');
+            if (sortedYears.length > 0) {
+                yearSection.classList.remove('hidden');
+                yearContainer.innerHTML = '';
+                sortedYears.forEach(year => {
+                    const btn = document.createElement('button');
+                    btn.textContent = `${year}年 を一括選択`;
+                    btn.className = 'px-3 py-1 text-xs font-bold rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 transition border border-gray-300';
+                    let toggleState = true;
+                    btn.onclick = () => {
+                        const targetMonths = availableMonths.filter(m => m.startsWith(year));
+                        if (toggleState) {
+                            targetMonths.forEach(m => selectedMonths.delete(m));
+                            btn.textContent = `${year}年 を一括解除中`;
+                            btn.classList.add('bg-red-50', 'text-red-500', 'border-red-200');
+                        } else {
+                            targetMonths.forEach(m => selectedMonths.add(m));
+                            btn.textContent = `${year}年 を一括選択`;
+                            btn.classList.remove('bg-red-50', 'text-red-500', 'border-red-200');
+                        }
+                        toggleState = !toggleState;
+                        updateFilterUI();
+                        renderDashboard();
+                    };
+                    yearContainer.appendChild(btn);
+                });
+            }
+
+            const container = document.getElementById('monthFilterContainer');
+            container.innerHTML = '';
+
+            const toggleAllBtn = document.createElement('button');
+            toggleAllBtn.textContent = 'すべて選択 / 解除';
+            toggleAllBtn.className = 'px-4 py-1.5 text-xs md:text-sm font-bold rounded-full bg-gray-100 text-gray-700 hover:bg-gray-200 transition border border-gray-300 mr-2';
+            toggleAllBtn.onclick = () => {
+                if (selectedMonths.size === availableMonths.length) {
+                    selectedMonths.clear(); 
+                } else {
+                    selectedMonths = new Set(availableMonths); 
+                }
+                updateFilterUI();
+                renderDashboard();
+            };
+            container.appendChild(toggleAllBtn);
+
+            availableMonths.forEach(month => {
+                const btn = document.createElement('button');
+                btn.textContent = month;
+                btn.className = 'month-btn px-4 py-1.5 text-xs md:text-sm font-bold rounded-full transition border';
+                btn.dataset.month = month;
+                
+                btn.onclick = () => {
+                    if (selectedMonths.has(month)) {
+                        selectedMonths.delete(month); 
+                    } else {
+                        selectedMonths.add(month); 
+                    }
+                    updateFilterUI();
+                    renderDashboard();
+                };
+                container.appendChild(btn);
+            });
+
+            updateFilterUI();
+
+            const typeList = Array.from(types).sort();
+            const lastMonthlySelected = monthlyCategorySelect.value;
+            monthlyCategorySelect.innerHTML = '<option value="ALL">すべてのカテゴリ (積み上げ)</option>';
+            typeList.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type === 'Sticker' ? 'スタンプ (Sticker)' : type === 'Emoji' ? '絵文字 (Emoji)' : type === 'Theme' ? '着せかえ (Theme)' : type;
+                monthlyCategorySelect.appendChild(option);
+            });
+            if (typeList.includes(lastMonthlySelected)) monthlyCategorySelect.value = lastMonthlySelected;
+
+            const lastRankSelected = categoryRankSelect.value;
+            categoryRankSelect.innerHTML = '';
+            typeList.forEach(type => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type === 'Sticker' ? 'スタンプ (Sticker)' : type === 'Emoji' ? '絵文字 (Emoji)' : type === 'Theme' ? '着せかえ (Theme)' : type;
+                categoryRankSelect.appendChild(option);
+            });
+            if (typeList.includes(lastRankSelected)) categoryRankSelect.value = lastRankSelected;
+
+            const countryList = Array.from(countriesSet).sort();
+            const lastCountrySelected = countryItemRankSelect.value;
+            countryItemRankSelect.innerHTML = '';
+            countryList.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c;
+                option.textContent = c === 'JP' ? '日本 (JP)' : c === 'TW' ? '台湾 (TW)' : c === 'TH' ? 'タイ (TH)' : c;
+                countryItemRankSelect.appendChild(option);
+            });
+            if (countryList.includes(lastCountrySelected)) {
+                countryItemRankSelect.value = lastCountrySelected;
+            } else if (countryList.includes('JP')) {
+                countryItemRankSelect.value = 'JP'; 
+            }
+
+            const itemList = Object.keys(itemTotalRev).sort((a, b) => itemTotalRev[b] - itemTotalRev[a]);
+            const lastTrackedItem = itemTrackSelect.value;
+            itemTrackSelect.innerHTML = '';
+            itemList.forEach(item => {
+                const option = document.createElement('option');
+                option.value = item;
+                option.textContent = item;
+                itemTrackSelect.appendChild(option);
+            });
+            if (itemList.includes(lastTrackedItem)) {
+                itemTrackSelect.value = lastTrackedItem;
+            } else if (itemList.length > 0) {
+                itemTrackSelect.value = itemList[0]; 
+            }
+
+            const lastMonthRankSelected = targetMonthRankSelect.value;
+            targetMonthRankSelect.innerHTML = '';
+            const sortedAvailableMonthsDesc = [...availableMonths].sort().reverse();
+            sortedAvailableMonthsDesc.forEach(m => {
+                const option = document.createElement('option');
+                option.value = m;
+                option.textContent = `${m} のランキング`;
+                targetMonthRankSelect.appendChild(option);
+            });
+            if (sortedAvailableMonthsDesc.includes(lastMonthRankSelected)) {
+                targetMonthRankSelect.value = lastMonthRankSelected;
+            } else if (sortedAvailableMonthsDesc.length > 0) {
+                targetMonthRankSelect.value = sortedAvailableMonthsDesc[0]; 
+            }
+        }
+
+        function updateFilterUI() {
+            const btns = document.querySelectorAll('.month-btn');
+            btns.forEach(btn => {
+                const m = btn.dataset.month;
+                if (selectedMonths.has(m)) {
+                    btn.classList.add('bg-[#00C300]', 'text-white', 'border-[#00C300]');
+                    btn.classList.remove('bg-white', 'text-gray-500', 'border-gray-300');
+                } else {
+                    btn.classList.remove('bg-[#00C300]', 'text-white', 'border-[#00C300]');
+                    btn.classList.add('bg-white', 'text-gray-500', 'border-gray-300');
+                }
+            });
+        }
+
+        function renderDashboard() {
+            let totalRevenue = 0;
+            let totalSalesCount = 0;
+            
+            const monthlyByType = {}; 
+            const monthlyTotal = {}; 
+            const allTypesFound = new Set(); 
+            
+            const itemsRev = {};
+            const itemsCount = {};
+            const countries = {};
+            const types = {};
+            
+            currentItemsRevByType = {};
+            currentItemsRevByCountry = {}; 
+            globalItemRevByMonthAndTitle = {}; 
+            currentItemsCountByType = {}; 
+            currentItemsCountByCountry = {}; 
+            globalItemCountByMonthAndTitle = {}; 
+            globalItemTypes = {}; 
+            globalMonthlyTotal = {}; 
+
+            globalData.forEach(row => {
+                const dateStr = row["From (GMT+9:00)"];
+                if (!dateStr) return;
+                const month = dateStr.substring(0, 7); 
+                
+                const revenueRaw = parseFloat(row["Revenue Share"]) || 0;
+                globalMonthlyTotal[month] = (globalMonthlyTotal[month] || 0) + revenueRaw;
+
+                if (!selectedMonths.has(month)) return;
+
+                const revenue = revenueRaw;
+                const count = parseInt(row["Sales Counts"]) || 0;
+                const title = row["Item Title"] || "不明";
+                const country = row["Country of Sale"] || "不明";
+                const type = row["Type"] || "不明";
+
+                globalItemTypes[title] = type; 
+
+                totalRevenue += revenue;
+                totalSalesCount += count;
+
+                if (!monthlyByType[month]) monthlyByType[month] = {};
+                monthlyByType[month][type] = (monthlyByType[month][type] || 0) + revenue;
+                monthlyTotal[month] = (monthlyTotal[month] || 0) + revenue; 
+                allTypesFound.add(type);
+
+                itemsRev[title] = (itemsRev[title] || 0) + revenue;
+                itemsCount[title] = (itemsCount[title] || 0) + count;
+                countries[country] = (countries[country] || 0) + revenue;
+                types[type] = (types[type] || 0) + revenue;
+
+                if (!currentItemsRevByType[type]) currentItemsRevByType[type] = {};
+                currentItemsRevByType[type][title] = (currentItemsRevByType[type][title] || 0) + revenue;
+                if (!currentItemsCountByType[type]) currentItemsCountByType[type] = {};
+                currentItemsCountByType[type][title] = (currentItemsCountByType[type][title] || 0) + count;
+
+                if (!currentItemsRevByCountry[country]) currentItemsRevByCountry[country] = {};
+                currentItemsRevByCountry[country][title] = (currentItemsRevByCountry[country][title] || 0) + revenue;
+                if (!currentItemsCountByCountry[country]) currentItemsCountByCountry[country] = {};
+                currentItemsCountByCountry[country][title] = (currentItemsCountByCountry[country][title] || 0) + count;
+
+                if (!globalItemRevByMonthAndTitle[month]) globalItemRevByMonthAndTitle[month] = {};
+                globalItemRevByMonthAndTitle[month][title] = (globalItemRevByMonthAndTitle[month][title] || 0) + revenue;
+                if (!globalItemCountByMonthAndTitle[month]) globalItemCountByMonthAndTitle[month] = {};
+                globalItemCountByMonthAndTitle[month][title] = (globalItemCountByMonthAndTitle[month][title] || 0) + count;
+            });
+
+            const totalRevFloor = Math.floor(totalRevenue);
+            const taxAmount = Math.floor(totalRevFloor * 0.1021);
+            const netRevenue = totalRevFloor - taxAmount;
+
+            document.getElementById('kpiRevenue').textContent = `¥${totalRevFloor.toLocaleString()}`;
+            document.getElementById('kpiNetRevenue').textContent = `¥${netRevenue.toLocaleString()}`;
+            document.getElementById('kpiSalesCount').textContent = totalSalesCount.toLocaleString();
+            const topItem = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a])[0];
+            document.getElementById('kpiTopItem').textContent = topItem || "-";
+
+            const sortedMonths = Object.keys(monthlyByType).sort();
+            const typeList = Array.from(allTypesFound).sort();
+            const targetMonthlyCat = monthlyCategorySelect.value || 'ALL';
+            
+            let stackedDatasets = [];
+
+            if (targetMonthlyCat === 'ALL') {
+                stackedDatasets = typeList.map(type => {
+                    const color = typeColors[type] || defaultColor;
+                    return {
+                        label: type === 'Sticker' ? 'スタンプ' : type === 'Emoji' ? '絵文字' : type === 'Theme' ? '着せかえ' : type,
+                        data: sortedMonths.map(m => monthlyByType[m][type] || 0),
+                        backgroundColor: color.bg,
+                        borderColor: color.border,
+                        borderWidth: 1
+                    };
+                });
+            } else {
+                const color = typeColors[targetMonthlyCat] || defaultColor;
+                stackedDatasets = [{
+                    label: targetMonthlyCat === 'Sticker' ? 'スタンプ' : targetMonthlyCat === 'Emoji' ? '絵文字' : targetMonthlyCat === 'Theme' ? '着せかえ' : targetMonthlyCat,
+                    data: sortedMonths.map(m => monthlyByType[m][targetMonthlyCat] || 0),
+                    backgroundColor: color.bg,
+                    borderColor: color.border,
+                    borderWidth: 1
+                }];
+            }
+
+            const ctxMonthly = document.getElementById('monthlyChart').getContext('2d');
+            if (charts['monthlyChart']) charts['monthlyChart'].destroy();
+            charts['monthlyChart'] = new Chart(ctxMonthly, {
+                type: 'bar',
+                data: {
+                    labels: sortedMonths,
+                    datasets: stackedDatasets
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    layout: {
+                        padding: { right: 80 } 
+                    },
+                    scales: {
+                        x: { stacked: (targetMonthlyCat === 'ALL'), beginAtZero: true }, 
+                        y: { stacked: (targetMonthlyCat === 'ALL') }                     
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        datalabels: {
+                            color: '#000000', 
+                            font: { weight: 'bold', size: 10 },
+                            anchor: 'center', 
+                            align: 'center',
+                            formatter: (value) => {
+                                return value > 50 ? '¥' + value.toLocaleString() : ''; 
+                            }
+                        }
+                    }
+                },
+                plugins: [whiteBackgroundPlugin, stackedTotalPlugin]
+            });
+
+            const avgContainer = document.getElementById('monthlyAverageContainer');
+            if (avgContainer) {
+                if (sortedMonths.length > 0) {
+                    avgContainer.classList.remove('hidden');
+                    avgContainer.innerHTML = '<div class="w-full text-xs text-gray-500 font-bold mb-1">⏱️ 選択カテゴリの1日平均売上 & 前月比成長率:</div>';
+                    sortedMonths.forEach((m, idx) => {
+                        const matches = m.match(/\d+/g);
+                        let daysInMonth = 30; 
+                        if (matches && matches.length >= 2) {
+                            const year = parseInt(matches[0], 10);
+                            const monthStr = parseInt(matches[1], 10);
+                            daysInMonth = new Date(year, monthStr, 0).getDate();
+                        }
+                        
+                        let targetMonthlyRevenue = (targetMonthlyCat === 'ALL') ? (monthlyTotal[m] || 0) : (monthlyByType[m][targetMonthlyCat] || 0);
+                        const dailyAvg = Math.floor(targetMonthlyRevenue / daysInMonth);
+                        
+                        let momText = '';
+                        if (idx > 0) {
+                            const prevM = sortedMonths[idx - 1];
+                            let prevMonthlyRevenue = (targetMonthlyCat === 'ALL') ? (monthlyTotal[prevM] || 0) : (monthlyByType[prevM][targetMonthlyCat] || 0);
+                            if (prevMonthlyRevenue > 0) {
+                                const momPercent = ((targetMonthlyRevenue - prevMonthlyRevenue) / prevMonthlyRevenue) * 100;
+                                const sign = momPercent >= 0 ? '▲' : '▼';
+                                const colorClass = momPercent >= 0 ? 'text-emerald-600' : 'text-red-500';
+                                momText = `<span class="${colorClass} ml-2 text-[10px] font-black">${sign}${Math.abs(momPercent).toFixed(1)}%</span>`;
+                            } else {
+                                momText = `<span class="text-gray-400 ml-2 text-[10px] font-normal">(前月データなし)</span>`;
+                            }
+                        }
+
+                        const badge = document.createElement('div');
+                        badge.className = 'bg-gray-50 border border-gray-100 px-3 py-1.5 rounded-lg flex items-center shadow-sm';
+                        badge.innerHTML = `<span class="text-gray-400 font-normal mr-2">${m}</span> <strong class="text-gray-700">¥${dailyAvg.toLocaleString()}</strong><span class="text-[10px] text-gray-400 font-normal">/日</span>${momText}`;
+                        avgContainer.appendChild(badge);
+                    });
+                } else {
+                    avgContainer.classList.add('hidden');
+                }
+            }
+
+            const sortedItemsRev = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 10);
+            const itemRevBgColors = sortedItemsRev.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].bg : defaultColor.bg);
+            const itemRevBorderColors = sortedItemsRev.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].border : defaultColor.border);
+            
+            createChart('itemChart', 'bar', sortedItemsRev, sortedItemsRev.map(i => itemsRev[i]), '収益 (円)', 
+                { bg: itemRevBgColors, border: itemRevBorderColors }, { indexAxis: 'y', layout: { padding: { right: 50 } } });
+
+            const sortedItemsCount = Object.keys(itemsCount).sort((a, b) => itemsCount[b] - itemsCount[a]).slice(0, 10);
+            const itemCountBgColors = sortedItemsCount.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].bg : defaultColor.bg);
+            const itemCountBorderColors = sortedItemsCount.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].border : defaultColor.border);
+
+            createChart('salesCountChart', 'bar', sortedItemsCount, sortedItemsCount.map(i => itemsCount[i]), '販売数', 
+                { bg: itemCountBgColors, border: itemCountBorderColors }, { indexAxis: 'y', layout: { padding: { right: 40 } } });
+
+            const countryLabels = Object.keys(countries).sort((a, b) => countries[b] - countries[a]);
+            createChart('countryChart', 'doughnut', countryLabels, countryLabels.map(c => countries[c]), '国別', 
+                { bg: ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'], border: '#ffffff' });
+
+            const typeLabels = Object.keys(types).sort((a, b) => types[b] - types[a]);
+            createChart('typeChart', 'pie', typeLabels, typeLabels.map(t => types[t]), '種類別', 
+                { bg: ['#8B5CF6', '#EC4899', '#6366F1'], border: '#ffffff' });
+
+            const sortedCountries = Object.keys(countries).sort((a, b) => countries[b] - countries[a]).slice(0, 10);
+            createChart('countryRankChart', 'bar', sortedCountries, sortedCountries.map(c => countries[c]), '収益 (円)', 
+                { bg: 'rgba(59, 130, 246, 0.7)', border: 'rgba(59, 130, 246, 1)' }, { indexAxis: 'y', layout: { padding: { right: 50 } } });
+
+            const catLabels = Object.keys(types).sort((a, b) => types[b] - types[a]);
+            const catValues = catLabels.map(t => types[t]);
+            const catColors = catLabels.map(label => typeColors[label] ? typeColors[label].bg : 'rgba(59, 130, 246, 0.7)');
+            const catBorders = catLabels.map(label => typeColors[label] ? typeColors[label].border : 'rgba(59, 130, 246, 1)');
+
+            createChart('categorySummaryChart', 'bar', catLabels, catValues, 'カテゴリ総売上', 
+                { bg: catColors, border: catBorders }, { indexAxis: 'y', layout: { padding: { right: 60 } } });
+
+            drawCategoryRankChart();
+            drawCountryItemRankChart(); 
+            drawItemTrackChart(); 
+            drawTargetMonthRankChart(); 
+            generateAIComment(); 
+        }
+
+        function drawCategoryRankChart() {
+            const targetType = categoryRankSelect.value;
+            if (!targetType || !currentItemsRevByType[targetType]) return;
+
+            const itemsRev = currentItemsRevByType[targetType];
+            const itemsCount = currentItemsCountByType[targetType] || {};
+            const sortedItems = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 10);
+            
+            const dataRev = sortedItems.map(i => itemsRev[i]);
+            const dataCount = sortedItems.map(i => itemsCount[i] || 0);
+            
+            const color1 = typeColors[targetType] || { bg: 'rgba(59, 130, 246, 0.7)', border: 'rgba(59, 130, 246, 1)' };
+
+            createChart('categoryRankChart', 'bar', sortedItems, dataRev, '収益 (円)', color1, { indexAxis: 'y', layout: { padding: { right: 85 } } }, dataCount);
+        }
+
+        function drawCountryItemRankChart() {
+            const targetCountry = countryItemRankSelect.value;
+            if (!targetCountry || !currentItemsRevByCountry[targetCountry]) return;
+
+            const itemsRev = currentItemsRevByCountry[targetCountry];
+            const itemsCount = currentItemsCountByCountry[targetCountry] || {};
+            const sortedItems = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 10);
+            
+            const dataRev = sortedItems.map(i => itemsRev[i]);
+            const dataCount = sortedItems.map(i => itemsCount[i] || 0);
+
+            const bgColors1 = sortedItems.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].bg : defaultColor.bg);
+            const borderColors1 = sortedItems.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].border : defaultColor.border);
+            
+            createChart('countryItemRankChart', 'bar', sortedItems, dataRev, '収益 (円)', { bg: bgColors1, border: borderColors1 }, { indexAxis: 'y', layout: { padding: { right: 85 } } }, dataCount);
+        }
+
+        function drawItemTrackChart() {
+            const targetItem = itemTrackSelect.value;
+            if (!targetItem) return;
+
+            const sortedMonths = Object.keys(globalItemRevByMonthAndTitle).sort();
+            const dataRev = sortedMonths.map(m => globalItemRevByMonthAndTitle[m][targetItem] || 0);
+            const dataCount = sortedMonths.map(m => globalItemCountByMonthAndTitle[m]?.[targetItem] || 0);
+
+            const itemType = globalItemTypes[targetItem];
+            const color1 = typeColors[itemType] || { bg: 'rgba(139, 92, 246, 0.7)', border: 'rgba(139, 92, 246, 1)' };
+
+            createChart('itemTrackChart', 'bar', sortedMonths, dataRev, '収益 (円)', color1, { layout: { padding: { top: 25 } }, scales: { y: { beginAtZero: true } } }, dataCount);
+        }
+
+        function drawTargetMonthRankChart() {
+            const targetMonth = targetMonthRankSelect.value;
+            if (!targetMonth || !globalItemRevByMonthAndTitle[targetMonth]) return;
+
+            const itemsRev = globalItemRevByMonthAndTitle[targetMonth];
+            const itemsCount = globalItemCountByMonthAndTitle[targetMonth] || {};
+            const sortedItems = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 10);
+            
+            const dataRev = sortedItems.map(i => itemsRev[i]);
+            const dataCount = sortedItems.map(i => itemsCount[i] || 0);
+
+            const bgColors1 = sortedItems.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].bg : defaultColor.bg);
+            const borderColors1 = sortedItems.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].border : defaultColor.border);
+
+            createChart('targetMonthRankChart', 'bar', sortedItems, dataRev, '収益 (円)', { bg: bgColors1, border: borderColors1 }, { indexAxis: 'y', layout: { padding: { right: 85 } } }, dataCount);
+        }
+
+        function updateTargetMeter() {
+            const targetValue = parseFloat(targetRevenueInput.value) || 0;
+            const currentValue = parseFloat(currentRevenueInput.value) || 0;
+            
+            const progressBar = document.getElementById('targetProgressBar');
+            const progressText = document.getElementById('targetProgressText');
+            const targetMessage = document.getElementById('targetMessage');
+
+            if (targetValue > 0) {
+                const pct = (currentValue / targetValue) * 100;
+                progressBar.style.width = `${Math.min(pct, 100)}%`;
+                progressText.textContent = `${Math.floor(pct)}%`;
+
+                if (pct >= 100) {
+                    targetMessage.innerHTML = `🎉 目標達成！素晴らしいペースです！`;
+                    targetMessage.className = "text-xs font-bold text-emerald-600 min-w-[200px]";
+                } else {
+                    const remain = targetValue - currentValue;
+                    targetMessage.innerHTML = `💪 目標まであと <span class="text-gray-900 font-extrabold">¥${Math.floor(remain).toLocaleString()}</span>`;
+                    targetMessage.className = "text-xs font-bold text-gray-500 min-w-[200px]";
+                }
+            } else {
+                progressBar.style.width = `0%`;
+                progressText.textContent = `0%`;
+                targetMessage.textContent = '';
+            }
+        }
+
+        function generateAIComment() {
+            const commentContainer = document.getElementById('aiAnalysisComment');
+            if (!commentContainer) return;
+
+            let aiTotalRevenue = 0;
+            let aiTotalSalesCount = 0;
+            const aiItemsRev = {};
+            const aiTypes = {};
+            const aiCountries = {};
+            const aiMonthlyTotal = {};
+
+            globalData.forEach(row => {
+                const dateStr = row["From (GMT+9:00)"];
+                if (!dateStr) return;
+                const month = dateStr.substring(0, 7); 
+                
+                if (!selectedMonths.has(month)) return;
+
+                const mStr = month.slice(-2);
+                if (mStr === "12" || mStr === "01") return; 
+
+                const revenue = parseFloat(row["Revenue Share"]) || 0;
+                const count = parseInt(row["Sales Counts"]) || 0;
+                const title = row["Item Title"] || "不明";
+                const country = row["Country of Sale"] || "不明";
+                const type = row["Type"] || "不明";
+
+                aiTotalRevenue += revenue;
+                aiTotalSalesCount += count;
+                aiItemsRev[title] = (aiItemsRev[title] || 0) + revenue;
+                aiTypes[type] = (aiTypes[type] || 0) + revenue;
+                aiCountries[country] = (aiCountries[country] || 0) + revenue;
+                aiMonthlyTotal[month] = (aiMonthlyTotal[month] || 0) + revenue;
+            });
+
+            if (aiTotalRevenue === 0) {
+                commentContainer.innerHTML = `
+                    <div class="p-4 bg-gray-50 rounded-xl border border-gray-200 text-gray-500 text-sm">
+                        <p>※選択された期間内に、あけおめ時期（12月・1月）以外のデータが存在しないため、通常期の分析レポートを生成できません。</p>
+                    </div>`;
+                return;
+            }
+
+            const aiTopItem = Object.keys(aiItemsRev).sort((a, b) => aiItemsRev[b] - aiItemsRev[a])[0];
+            const topType = Object.keys(aiTypes).sort((a, b) => aiTypes[b] - aiTypes[a])[0];
+            const topTypeJa = topType === 'Sticker' ? 'スタンプ' : topType === 'Emoji' ? '絵文字' : topType === 'Theme' ? '着せかえ' : topType;
+
+            const topCountry = Object.keys(aiCountries).sort((a, b) => aiCountries[b] - aiCountries[a])[0];
+            const countryNames = { 'JP': '日本', 'TW': '台湾', 'TH': 'タイ', 'ID': 'インドネシア' };
+            const topCountryJa = countryNames[topCountry] || topCountry;
+
+            let topItemDependence = 0;
+            if (aiTopItem && aiItemsRev[aiTopItem] && aiTotalRevenue > 0) {
+                topItemDependence = (aiItemsRev[aiTopItem] / aiTotalRevenue) * 100;
+            }
+
+            let growthHtml = "";
+            const sortedMonths = Object.keys(aiMonthlyTotal).sort();
+            if (sortedMonths.length > 0) {
+                const latestMonth = sortedMonths[sortedMonths.length - 1];
+                const latestRev = aiMonthlyTotal[latestMonth] || 0;
+                
+                const [yyyy, mm] = latestMonth.split(/[.\-\/]/);
+                let prevDate = new Date(parseInt(yyyy), parseInt(mm) - 2, 1);
+                let prevYearStr = prevDate.getFullYear();
+                let prevMonthStr = String(prevDate.getMonth() + 1).padStart(2, '0');
+                const separator = latestMonth.charAt(4);
+                const prevMonth = `${prevYearStr}${separator}${prevMonthStr}`;
+
+                const prevRev = aiMonthlyTotal[prevMonth] || 0;
+
+                if (prevRev > 0) {
+                    const momPercent = ((latestRev - prevRev) / prevRev) * 100;
+                    if (momPercent >= 0) {
+                        growthHtml = `直近の有効月（${latestMonth}）は、前月比 <strong class="text-emerald-600">＋${momPercent.toFixed(1)}%</strong> と見事な成長を遂げています。`;
+                    } else {
+                        growthHtml = `直近の有効月（${latestMonth}）は、前月比 <strong class="text-red-500">${momPercent.toFixed(1)}%</strong> と一休みしています。`;
+                    }
+                } else if (latestRev > 0) {
+                    growthHtml = `直近の有効月（${latestMonth}）の売上は堅調に推移しています。`;
+                }
+            }
+
+            let countryAdviceHtml = "";
+            const overseasCountries = Object.keys(aiCountries).filter(c => c !== 'JP');
+            const topOverseasCountry = overseasCountries.sort((a, b) => aiCountries[b] - aiCountries[a])[0];
+            const topOverseasCountryJa = topOverseasCountry ? (countryNames[topOverseasCountry] || topOverseasCountry) : null;
+
+            if (topCountry === 'JP') {
+                if (topOverseasCountry && aiCountries[topOverseasCountry] > 0) {
+                    const overseasRatio = (aiCountries[topOverseasCountry] / aiTotalRevenue) * 100;
+                    const localizeHint = topOverseasCountry === 'TW' ? '「繁体字」への翻訳や少しオーバーなリアクション' : topOverseasCountry === 'TH' ? 'タイ語や現地の日常表現' : '現地の言語や文化';
+                    
+                    countryAdviceHtml = `<p>国内（日本市場）が全体のベース収益を力強く支えているため、次なる成長エンジンは「海外展開」にあります。特に注目すべきは海外トップの【<strong class="text-gray-900">${topOverseasCountryJa}市場（全体の${overseasRatio.toFixed(1)}%）</strong>】です。国内向けのエース作品をベースに、${localizeHint}を取り入れたローカライズ版を投下することで、少ない労力で効率よく新規ファンを開拓・拡大できるフェーズです。</p>`;
+                } else {
+                    countryAdviceHtml = `<p>現在、売上のほぼすべてが【<strong class="text-gray-900">日本市場（JP）</strong>】で構成されており、国内での盤石な土台ができています。次の一手として、文字に依存しない「動き・表情・ジェスチャー」メインのスタンプを投入し、台湾やタイなどの新規海外市場の反応を見るテストを行うのに最適な時期です。</p>`;
+                }
+            } else if (topCountry === 'TW') {
+                countryAdviceHtml = `<p>素晴らしいことに【<strong class="text-gray-900">台湾市場（TW）</strong>】での支持が最大の熱量を見せています！台湾ユーザーには「繁体字」を使った挨拶や、ちょっと大げさでユーモアのあるリアクションが非常に好まれます。台湾の日常的なトレンドを取り入れたリリースを組み込むと爆発的な効果が期待できます。</p>`;
+            } else {
+                countryAdviceHtml = `<p>現在【<strong class="text-gray-900">${topCountryJa}市場</strong>】が大きなシェアを占めています。文字を含まない「表情や動きだけで伝わるジェスチャー」や、現地の日常会話をリサーチして取り入れることで、グローバルな売上をさらに拡大させるポテンシャルを秘めています。</p>`;
+            }
+
+            let html = `
+                <div class="p-4 bg-green-50 rounded-xl border border-green-100 text-gray-700 space-y-4 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 bg-green-200 text-green-800 text-[10px] font-bold px-2 py-1 rounded-bl-lg opacity-80 shadow-sm">
+                        ※あけおめ時期(12月・1月)を除外した分析
+                    </div>
+                    <div class="pt-2">
+                        <p class="font-bold text-[#00C300] text-base mb-1">📊 通常期の販売動向</p>
+                        <p>あけおめ特需を除いた通常期間の総収益は <strong class="text-gray-900">¥${Math.floor(aiTotalRevenue).toLocaleString()}</strong>（総販売数: <strong class="text-gray-900">${aiTotalSalesCount.toLocaleString()} 件</strong>）です。${growthHtml}</p>
+                    </div>
+                    
+                    <div>
+                        <p class="font-bold text-[#00C300] text-base mb-1">💡 ヒット商品の傾向と分析</p>
+                        <p>通常期に最も収益の柱となっている主力のカテゴリは【<strong class="text-gray-900">${topTypeJa}</strong>】です。特に「<strong class="text-gray-900">${aiTopItem || '該当なし'}</strong>」が真のエースアイテムとして活躍しており、通常期売上の <strong class="text-gray-900">${topItemDependence.toFixed(1)}%</strong> を一人で稼ぎ出しています。季節イベントに依存しないこのアイテムの「ウケている要素（絵柄のトーンや言葉のチョイス）」を抽出し、年間通して売れる第二・第三の柱となるシリーズを展開していくことが当面の急務であり、大きなチャンスです。</p>
+                    </div>
+
+                    <div>
+                        <p class="font-bold text-[#00C300] text-base mb-1">🌏 エリア・マーケティングへの提言</p>
+                        ${countryAdviceHtml}
+                    </div>
+
+                    <div class="pt-2 border-t border-green-100">
+                        <p class="font-bold text-[#00C300] text-sm mb-1 mt-2">🚀 次の一手としての推奨アクション</p>
+                        <ul class="list-disc list-inside space-y-1 pl-1 text-sm text-gray-600">
+                            <li>年間通して売れている「${aiTopItem}」の世界観を踏襲した、新作スピンオフの企画</li>
+                            <li>「指定月の売上ランキング」を確認し、春夏秋の各季節に売れていた傾向の再現</li>
+                            <li>【${topOverseasCountryJa || topCountryJa}市場】の文化やトレンドに合わせた、専用ローカライズ版のテスト開発</li>
+                        </ul>
+                    </div>
+                </div>
+            `;
+
+            commentContainer.innerHTML = html;
+        }
+
+        updateTargetMeter();
+    </script>
+</body>
+</html>
