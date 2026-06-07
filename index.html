@@ -37,11 +37,16 @@
         <div class="max-w-6xl mx-auto flex items-center justify-between px-4">
             <div class="flex items-center">
                 <img src="top-left.png" alt="シーサーアイコン" class="h-16 w-auto block object-contain">
-                <h1 class="text-lg md:text-xl font-bold ml-3 py-4">LINE Sales Analytics Pro</h1>
+                <h1 class="text-lg md:text-xl font-bold ml-3 py-4">LINE Sales Analytics</h1>
             </div>
-            <a href="https://aalinezipmaker.netlify.app/" target="_blank" rel="noopener noreferrer" class="text-xs md:text-sm font-bold text-white hover:text-green-100 transition no-underline">
-                🔗スタンプ/絵文字 ZIPメーカー
-            </a>
+            <div class="flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-4 py-2 sm:py-0">
+                <a href="https://aalinezipmaker.netlify.app/" target="_blank" rel="noopener noreferrer" class="text-xs md:text-sm font-bold text-white hover:text-green-100 transition no-underline whitespace-nowrap">
+                    🔗スタンプ/絵文字 ZIPメーカー
+                </a>
+                <a href="https://sales-graph-analyzer.vercel.app/" target="_blank" rel="noopener noreferrer" class="text-xs md:text-sm font-bold text-white hover:text-green-100 transition no-underline whitespace-nowrap">
+                    📊売上スクショ分析
+                </a>
+            </div>
         </div>
     </header>
     
@@ -273,7 +278,15 @@
                 </div>
                 <div class="chart-container"><canvas id="jpVsOverseasChart"></canvas></div>
             </div>
-
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
+                <div class="flex justify-between items-center border-b pb-2 mb-4">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🌍 直近半年のカテゴリ比率 (海外限定)</h2>
+                    <button onclick="downloadChart('overseasCategoryRatioChart', '海外限定_カテゴリ比率')" class="text-xs font-bold text-[#00C300] hover:text-[#009900] active:scale-95 transition">
+                        📥 画像保存
+                    </button>
+                </div>
+                <div class="chart-container" style="height: 300px;"><canvas id="overseasCategoryRatioChart"></canvas></div>
+            </div>
             
 
             <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
@@ -822,6 +835,7 @@
 
             const monthlyJpRev = {};
             const monthlyOverseasRev = {};
+            const monthlyOverseasByType = {};
             
             currentItemsRevByType = {};
             currentItemsRevByCountry = {}; 
@@ -852,6 +866,10 @@
                     monthlyJpRev[month] = (monthlyJpRev[month] || 0) + revenue;
                 } else {
                     monthlyOverseasRev[month] = (monthlyOverseasRev[month] || 0) + revenue;
+                    
+                    // ▼★追加：海外限定のカテゴリ別集計
+                    if (!monthlyOverseasByType[month]) monthlyOverseasByType[month] = {};
+                    monthlyOverseasByType[month][type] = (monthlyOverseasByType[month][type] || 0) + revenue;
                 }
 
                 globalItemTypes[title] = type; 
@@ -1005,6 +1023,58 @@
                     responsive: true, maintainAspectRatio: false,
                     scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
                     plugins: { datalabels: { display: false } }
+                },
+                plugins: [whiteBackgroundPlugin]
+            });
+
+            // ▼★追加：直近半年のカテゴリ比率 (海外限定)
+            const overseasMonthsAll = Object.keys(monthlyOverseasByType).sort();
+            // 直近6ヶ月分のみを抽出
+            const recentOverseasMonths = overseasMonthsAll.slice(-6);
+            
+            // 直近半年のカテゴリ別売上を合計する
+            const totalOverseasByType = {};
+            recentOverseasMonths.forEach(m => {
+                Object.keys(monthlyOverseasByType[m] || {}).forEach(type => {
+                    totalOverseasByType[type] = (totalOverseasByType[type] || 0) + monthlyOverseasByType[m][type];
+                });
+            });
+
+            const typeListForRatio = Array.from(allTypesFound).sort();
+            const chartLabels = typeListForRatio.map(type => type === 'Sticker' ? 'スタンプ' : type === 'Emoji' ? '絵文字' : type === 'Theme' ? '着せかえ' : type);
+            const chartData = typeListForRatio.map(type => totalOverseasByType[type] || 0);
+            const bgColors = typeListForRatio.map(type => typeColors[type] ? typeColors[type].bg : defaultColor.bg);
+
+            const ctxOverseasRatio = document.getElementById('overseasCategoryRatioChart').getContext('2d');
+            if (charts['overseasCategoryRatioChart']) charts['overseasCategoryRatioChart'].destroy();
+            charts['overseasCategoryRatioChart'] = new Chart(ctxOverseasRatio, {
+                type: 'doughnut',
+                data: {
+                    labels: chartLabels,
+                    datasets: [{
+                        data: chartData,
+                        backgroundColor: bgColors,
+                        borderColor: '#ffffff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    radius: '65%',
+                    plugins: {
+                        legend: { display: true, position: 'bottom' },
+                        datalabels: {
+                            display: true,
+                            color: '#000000',
+                            font: { weight: 'bold', size: 12 },
+                            formatter: (value, context) => {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+                                return percentage > 0 ? percentage + '%' : '';
+                            }
+                        }
+                    }
                 },
                 plugins: [whiteBackgroundPlugin]
             });
