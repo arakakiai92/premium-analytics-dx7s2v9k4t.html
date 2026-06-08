@@ -46,6 +46,10 @@
                 <a href="https://sales-graph-analyzer.vercel.app/" target="_blank" rel="noopener noreferrer" class="text-xs md:text-sm font-bold text-white hover:text-green-100 transition no-underline whitespace-nowrap">
                     📊売上スクショ分析
                 </a>
+                <button id="toggleNumbersBtn" onclick="toggleNumbers()" 
+                    class="text-xs md:text-sm font-bold text-white bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition whitespace-nowrap">
+                    🙈 数字を隠す
+                </button>
             </div>
         </div>
     </header>
@@ -282,7 +286,7 @@
                 <div class="flex justify-between items-center border-b pb-2 mb-4">
                     <h2 class="text-sm md:text-base font-bold text-gray-700">🌍 直近半年のカテゴリ比率 (海外限定)</h2>
                     <button onclick="downloadChart('overseasCategoryRatioChart', '海外限定_カテゴリ比率')" class="text-xs font-bold text-[#00C300] hover:text-[#009900] active:scale-95 transition">
-                        📥 画像保存
+                        📥 保存
                     </button>
                 </div>
                 <div class="chart-container" style="height: 300px;"><canvas id="overseasCategoryRatioChart"></canvas></div>
@@ -352,6 +356,9 @@
     </footer>
 
     <script>
+        // 数字の表示/非表示トグル状態用のグローバル変数
+        let numbersHidden = false;
+
         const pieLabelsLinePlugin = {
             id: 'pieLabelsLine',
             afterDraw: (chart) => {
@@ -411,7 +418,14 @@
                         ctx.lineWidth = 1;
                         ctx.stroke();
 
-                        ctx.fillStyle = '#000000';
+                        if (numbersHidden) {
+                            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+                            ctx.shadowBlur = 5;
+                            ctx.fillStyle = 'transparent';
+                        } else {
+                            ctx.fillStyle = '#000000';
+                        }
+
                         ctx.font = 'bold 11px sans-serif';
                         ctx.textBaseline = 'middle';
                         ctx.textAlign = isRight ? 'left' : 'right';
@@ -476,8 +490,16 @@
                 
                 const { ctx, scales: { x }, data } = chart;
                 ctx.save();
+                
+                if (numbersHidden) {
+                    ctx.shadowColor = 'rgba(239, 68, 68, 0.6)';
+                    ctx.shadowBlur = 5;
+                    ctx.fillStyle = 'transparent';
+                } else {
+                    ctx.fillStyle = '#EF4444'; 
+                }
+
                 ctx.font = 'bold 12px sans-serif';
-                ctx.fillStyle = '#EF4444'; 
                 ctx.textBaseline = 'middle';
                 ctx.textAlign = 'left';
 
@@ -495,7 +517,8 @@
                     if (total > 0) {
                         const xPos = x.getPixelForValue(total);
                         const yPos = firstMeta.data[index].y;
-                        ctx.fillText('¥' + Math.floor(total).toLocaleString(), xPos + 8, yPos + 1);
+                        const totalText = '¥' + Math.floor(total).toLocaleString();
+                        ctx.fillText(totalText, xPos + 8, yPos + 1);
                     }
                 });
                 ctx.restore();
@@ -508,68 +531,55 @@
 
             const originalCanvas = chart.canvas;
             
-            // 裏側で画像合成用の新しいCanvas（画用紙）を作成
             const newCanvas = document.createElement('canvas');
             const ctx = newCanvas.getContext('2d');
             
-            // Retina等の高解像度ディスプレイで文字がぼやけないようスケールを計算
             const scale = originalCanvas.width / (originalCanvas.clientWidth || 1);
             const titleHeight = 55 * scale; 
             
-            // 新しいキャンバスのサイズを設定（元のグラフの高さ ＋ タイトル用の余白）
             newCanvas.width = originalCanvas.width;
             newCanvas.height = originalCanvas.height + titleHeight;
             
-            // 1. 全体を白背景で塗りつぶす
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, newCanvas.width, newCanvas.height);
             
-            // 2. 上部の余白にタイトルを描画する
-            ctx.fillStyle = '#4b5563'; // Tailwindの text-gray-600 相当の色
+            ctx.fillStyle = '#4b5563'; 
             ctx.font = `bold ${18 * scale}px sans-serif`; 
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
-            const cleanTitle = title.replace(/_/g, ' '); // アンダーバーをスペースに変換
+            const cleanTitle = title.replace(/_/g, ' '); 
             ctx.fillText(cleanTitle, newCanvas.width / 2, titleHeight / 2); 
             
-            // 3. タイトルの下に、元のグラフをそのままコピーして貼り付け
             ctx.drawImage(originalCanvas, 0, titleHeight);
             
-            // ファイル名の生成
             const now = new Date();
             const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
             const filename = `${title}_${dateStr}.png`;
 
-            // CanvasをBlob（ファイルデータ）に変換
             newCanvas.toBlob(async (blob) => {
                 if (!blob) return;
                 
                 const file = new File([blob], filename, { type: 'image/png' });
                 
-                // Web Share APIがサポートされている環境（iOS Safariなど）かチェック
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     try {
                         await navigator.share({
                             files: [file],
                             title: cleanTitle
                         });
-                        // シェア成功時の処理（必要であれば）
                     } catch (error) {
-                        // ユーザーがシェアシートを閉じた場合(AbortError)以外のエラーをキャッチ
                         if (error.name !== 'AbortError') {
                             console.error('シェアに失敗しました:', error);
                             fallbackDownload(newCanvas.toDataURL('image/png'), filename);
                         }
                     }
                 } else {
-                    // PCやWeb Share API非対応ブラウザ向け（従来のダウンロード方式）
                     fallbackDownload(newCanvas.toDataURL('image/png'), filename);
                 }
             }, 'image/png');
         }
 
-        // 従来のダウンロード方式（フォールバック用）
         function fallbackDownload(imageURI, filename) {
             const link = document.createElement('a');
             link.download = filename;
@@ -578,6 +588,7 @@
             link.click();
             document.body.removeChild(link);
         }
+
         function createChart(canvasId, type, labels, data, label, colors, extraOptions = {}, countData = null) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             if (charts[canvasId]) charts[canvasId].destroy();
@@ -587,6 +598,9 @@
 
             const pluginsToUse = [whiteBackgroundPlugin];
             if (isPie) pluginsToUse.push(pieLabelsLinePlugin); 
+
+            // ★修正点：グラフが横棒か縦棒かを正しく判定
+            const isHorizontal = extraOptions.indexAxis === 'y';
 
             const config = {
                 type: type,
@@ -607,6 +621,24 @@
                     layout: {
                         padding: isPie ? { top: 20, bottom: 20, left: 20, right: 20 } : 0
                     },
+                    ...extraOptions,
+                    // ★修正点：数値が入る軸だけをトグル連動で隠し、文字（作品名や月）の軸は常に表示
+                    scales: isPie ? undefined : {
+                        x: { 
+                            ticks: { 
+                                display: isHorizontal ? !numbersHidden : true,
+                                font: { size: 10 }
+                            }, 
+                            ...((extraOptions.scales && extraOptions.scales.x) || {}) 
+                        },
+                        y: { 
+                            ticks: { 
+                                display: isHorizontal ? true : !numbersHidden,
+                                font: { size: 10 }
+                            }, 
+                            ...((extraOptions.scales && extraOptions.scales.y) || {}) 
+                        }
+                    },
                     plugins: { 
                         legend: { 
                             display: isPie,
@@ -615,7 +647,9 @@
                         },
                         datalabels: {
                             display: !isPie,
-                            color: '#000000', 
+                            color: numbersHidden ? 'transparent' : '#000000', 
+                            textShadowColor: numbersHidden ? 'rgba(0, 0, 0, 0.5)' : 'transparent',
+                            textShadowBlur: numbersHidden ? 5 : 0,
                             font: { weight: 'bold', size: 10 },
                             anchor: 'end', 
                             align: 'end',
@@ -628,8 +662,7 @@
                                 return text;
                             }
                         }
-                    },
-                    ...extraOptions
+                    }
                 },
                 plugins: pluginsToUse
             };
@@ -821,7 +854,7 @@
             } else if (countryList.includes('JP')) {
                 countryItemRankSelect.value = 'JP'; 
             }
-            // ▼ここから追加：推移グラフ用の国プルダウン生成▼
+            
             const lastTrendCountrySelected = categoryTrendCountrySelect.value;
             categoryTrendCountrySelect.innerHTML = '<option value="ALL">すべての国 (全国)</option>';
             countryList.forEach(c => {
@@ -835,7 +868,6 @@
             } else {
                 categoryTrendCountrySelect.value = 'ALL';
             }
-            // ▲ここまで追加▲
 
             const itemList = Object.keys(itemTotalRev).sort((a, b) => itemTotalRev[b] - itemTotalRev[a]);
             const lastTrackedItem = itemTrackSelect.value;
@@ -928,8 +960,6 @@
                     monthlyJpRev[month] = (monthlyJpRev[month] || 0) + revenue;
                 } else {
                     monthlyOverseasRev[month] = (monthlyOverseasRev[month] || 0) + revenue;
-                    
-                    // ▼★追加：海外限定のカテゴリ別集計
                     if (!monthlyOverseasByType[month]) monthlyOverseasByType[month] = {};
                     monthlyOverseasByType[month][type] = (monthlyOverseasByType[month][type] || 0) + revenue;
                 }
@@ -1017,14 +1047,17 @@
                     layout: {
                         padding: { right: 80 } 
                     },
+                    // ★修正：横棒グラフなので、X軸（金額）だけをトグル連動、Y軸（月テキスト）は常に表示
                     scales: {
-                        x: { stacked: (targetMonthlyCat === 'ALL'), beginAtZero: true }, 
-                        y: { stacked: (targetMonthlyCat === 'ALL') }                     
+                        x: { stacked: (targetMonthlyCat === 'ALL'), beginAtZero: true, ticks: { display: !numbersHidden } }, 
+                        y: { stacked: (targetMonthlyCat === 'ALL'), ticks: { display: true } }                     
                     },
                     plugins: {
                         legend: { display: true, position: 'top' },
                         datalabels: {
-                            color: '#000000', 
+                            color: numbersHidden ? 'transparent' : '#000000', 
+                            textShadowColor: numbersHidden ? 'rgba(0, 0, 0, 0.5)' : 'transparent',
+                            textShadowBlur: numbersHidden ? 5 : 0,
                             font: { weight: 'bold', size: 10 },
                             anchor: 'center', 
                             align: 'center',
@@ -1036,7 +1069,7 @@
                 },
                 plugins: [whiteBackgroundPlugin, stackedTotalPlugin]
             });
-            // ▼▼▼ここから追加（1日平均売上の折れ線グラフ）▼▼▼
+
             const avgContainer = document.getElementById('monthlyAverageContainer');
             if (avgContainer) {
                 if (sortedMonths.length > 0) {
@@ -1108,12 +1141,20 @@
                             plugins: {
                                 legend: { display: false },
                                 datalabels: {
-                                    color: (context) => {
+                                    color: numbersHidden ? 'transparent' : (context) => {
                                         const rate = momRates[context.dataIndex];
                                         if (rate && rate.startsWith('+')) return '#059669'; 
                                         if (rate && rate.startsWith('-')) return '#DC2626'; 
                                         return '#4B5563'; 
                                     },
+                                    textShadowColor: (context) => {
+                                        if (!numbersHidden) return 'transparent';
+                                        const rate = momRates[context.dataIndex];
+                                        if (rate && rate.startsWith('+')) return 'rgba(5, 150, 105, 0.6)'; 
+                                        if (rate && rate.startsWith('-')) return 'rgba(220, 38, 38, 0.6)'; 
+                                        return 'rgba(75, 85, 99, 0.6)'; 
+                                    },
+                                    textShadowBlur: numbersHidden ? 5 : 0,
                                     font: { weight: 'bold', size: 10 },
                                     anchor: 'end',
                                     align: 'top',
@@ -1133,9 +1174,7 @@
                     avgContainer.className = 'hidden';
                 }
             }
-            // ▲▲▲ここまで追加▲▲▲
 
-            // チャート描画続き
             const sortedItemsRev = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 10);
             const itemRevBgColors = sortedItemsRev.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].bg : defaultColor.bg);
             const itemRevBorderColors = sortedItemsRev.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].border : defaultColor.border);
@@ -1163,7 +1202,6 @@
             drawItemTrackChart(); 
             drawTargetMonthRankChart();
 
-            // 国内 vs 海外チャートの描画
             const jpOvLabels = Object.keys(monthlyTotal).sort();
             const dataJp = jpOvLabels.map(m => monthlyJpRev[m] || 0);
             const dataOverseas = jpOvLabels.map(m => monthlyOverseasRev[m] || 0);
@@ -1181,18 +1219,19 @@
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+                    // ★修正：縦棒グラフなので、X軸（月テキスト）は常に表示、Y軸（金額）をトグル連動
+                    scales: { 
+                        x: { stacked: true, ticks: { display: true } }, 
+                        y: { stacked: true, beginAtZero: true, ticks: { display: !numbersHidden } } 
+                    },
                     plugins: { datalabels: { display: false } }
                 },
                 plugins: [whiteBackgroundPlugin]
             });
 
-            // ▼★追加：直近半年のカテゴリ比率 (海外限定)
             const overseasMonthsAll = Object.keys(monthlyOverseasByType).sort();
-            // 直近6ヶ月分のみを抽出
             const recentOverseasMonths = overseasMonthsAll.slice(-6);
             
-            // 直近半年のカテゴリ別売上を合計する
             const totalOverseasByType = {};
             recentOverseasMonths.forEach(m => {
                 Object.keys(monthlyOverseasByType[m] || {}).forEach(type => {
@@ -1226,7 +1265,9 @@
                         legend: { display: true, position: 'bottom' },
                         datalabels: {
                             display: true,
-                            color: '#000000',
+                            color: numbersHidden ? 'transparent' : '#000000',
+                            textShadowColor: numbersHidden ? 'rgba(0, 0, 0, 0.5)' : 'transparent',
+                            textShadowBlur: numbersHidden ? 5 : 0,
                             font: { weight: 'bold', size: 12 },
                             formatter: (value, context) => {
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
@@ -1239,7 +1280,6 @@
                 plugins: [whiteBackgroundPlugin]
             });
 
-            // トレンド分析
             const trendArea = document.getElementById('trendArea');
             trendArea.innerHTML = '';
             const sortedMonthsTrend = Object.keys(globalMonthlyTotal).sort();
@@ -1260,13 +1300,17 @@
                     const colorClass = item.diff >= 0 ? 'text-emerald-600' : 'text-red-500';
                     const row = document.createElement('div');
                     row.className = 'flex justify-between items-center text-xs md:text-sm font-bold p-2 bg-gray-50 rounded-lg';
-                    row.innerHTML = `<span class="truncate max-w-[60%]">${item.title}</span><span class="${colorClass}">${sign}¥${Math.abs(item.diff).toLocaleString()}</span>`;
+                    
+                    const blurStyle = numbersHidden ? 'style="filter: blur(5px); user-select: none;"' : '';
+                    const displayDiff = `¥${Math.abs(item.diff).toLocaleString()}`;
+                    row.innerHTML = `<span class="truncate max-w-[60%]">${item.title}</span><span class="${colorClass}">${sign}<span ${blurStyle}>${displayDiff}</span></span>`;
+                    
                     trendArea.appendChild(row);
                 });
             } else {
                 trendArea.innerHTML = '<p class="text-xs text-gray-400">※2ヶ月分以上のデータを読み込むと分析結果が表示されます。</p>';
             }
-            // ▼ここから追加：カテゴリ別の推移グラフ描画（国別フィルタリング対応）▼
+            
             const targetTrendCountry = categoryTrendCountrySelect.value || 'ALL';
             const trendMonthlyByType = {}; 
             const sortedMonthsTrendAll = Object.keys(monthlyByType).sort();
@@ -1300,7 +1344,7 @@
             createChart('stickerTrendChart', 'bar', sortedMonthsTrendAll, stickerData, '収益 (円)', typeColors['Sticker'] || defaultColor, trendOptions);
             createChart('emojiTrendChart', 'bar', sortedMonthsTrendAll, emojiData, '収益 (円)', typeColors['Emoji'] || defaultColor, trendOptions);
             createChart('themeTrendChart', 'bar', sortedMonthsTrendAll, themeData, '収益 (円)', typeColors['Theme'] || defaultColor, trendOptions);
-            // ▲ここまで追加▲
+            
             generateAIComment(); 
         }
 
@@ -1491,7 +1535,7 @@
                     
                     countryAdviceHtml = `<p>国内（日本市場）が全体のベース収益を力強く支えているため、次なる成長エンジンは「海外展開」にあります。特に注目すべきは海外トップの【<strong class="text-gray-900">${topOverseasCountryJa}市場（全体の${overseasRatio.toFixed(1)}%）</strong>】です。国内向けのエース作品をベースに、${localizeHint}を取り入れたローカライズ版を投下することで、少ない労力で効率よく新規ファンを開拓・拡大できるフェーズです。</p>`;
                 } else {
-                    countryAdviceHtml = `<p>現在、売上のほぼすべてが【<strong class="text-gray-900">日本市場（JP）</strong>】で構成されており、国内での盤石な土台ができています。次の一手として、文字に依存しない「動き・表情・ジェスチャー」メインのスタンプを投入し、台湾やタイなどの新規海外市場の反応を見るテストを行うのに最適な時期です。</p>`;
+                    countryAdviceHtml = `<p>現在、売上のほぼすべてが【<strong class="text-gray-900">日本市場（JP）</strong>】で構成されており、国内での盤石な土台ができています。次の一手として、文字に依存しない「動き・表情・ジェスチャー」メイン of スタンプを投入し、台湾やタイなどの新規海外市場の反応を見るテストを行うのに最適な時期です。</p>`;
                 }
             } else if (topCountry === 'TW') {
                 countryAdviceHtml = `<p>素晴らしいことに【<strong class="text-gray-900">台湾市場（TW）</strong>】での支持が最大の熱量を見せています！台湾ユーザーには「繁体字」を使った挨拶や、ちょっと大げさでユーモアのあるリアクションが非常に好まれます。台湾の日常的なトレンドを取り入れたリリースを組み込むと爆発的な効果が期待できます。</p>`;
@@ -1534,6 +1578,35 @@
         }
 
         updateTargetMeter();
+
+        function toggleNumbers() {
+            numbersHidden = !numbersHidden;
+            const btn = document.getElementById('toggleNumbersBtn');
+
+            const targetIds = [
+                'kpiRevenue', 'kpiNetRevenue', 'kpiSalesCount',
+                'targetProgressText'
+            ];
+
+            targetIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.style.filter = numbersHidden ? 'blur(6px)' : 'none';
+                el.style.userSelect = numbersHidden ? 'none' : '';
+            });
+
+            ['targetRevenueInput', 'currentRevenueInput'].forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.style.filter = numbersHidden ? 'blur(6px)' : 'none';
+            });
+
+            btn.textContent = numbersHidden ? '👁️ 数字を表示' : '🙈 数字を隠す';
+
+            if (globalData && globalData.length > 0) {
+                renderDashboard();
+            }
+        }
     </script>
 </body>
 </html>
