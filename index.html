@@ -1036,6 +1036,104 @@
                 },
                 plugins: [whiteBackgroundPlugin, stackedTotalPlugin]
             });
+            // ▼▼▼ここから追加（1日平均売上の折れ線グラフ）▼▼▼
+            const avgContainer = document.getElementById('monthlyAverageContainer');
+            if (avgContainer) {
+                if (sortedMonths.length > 0) {
+                    avgContainer.className = 'mb-6 w-full bg-white p-3 rounded-xl border border-gray-100 shadow-sm'; 
+                    avgContainer.innerHTML = `
+                        <div class="flex justify-between items-center mb-2 border-b pb-1">
+                            <h3 class="text-xs font-bold text-gray-600">⏱️ 1日平均売上の推移 & 前月比 (選択カテゴリ)</h3>
+                            <button onclick="downloadChart('dailyAvgChart', '1日平均売上推移')" class="text-[10px] font-bold text-[#00C300] hover:text-[#009900] transition">📥 画像保存</button>
+                        </div>
+                        <div class="chart-container" style="height: 140px;"><canvas id="dailyAvgChart"></canvas></div>
+                    `;
+                    
+                    const dailyAvgs = [];
+                    const momRates = [];
+
+                    sortedMonths.forEach((m, idx) => {
+                        const matches = m.match(/\d+/g);
+                        let daysInMonth = 30; 
+                        if (matches && matches.length >= 2) {
+                            const year = parseInt(matches[0], 10);
+                            const monthStr = parseInt(matches[1], 10);
+                            daysInMonth = new Date(year, monthStr, 0).getDate();
+                        }
+                        
+                        let targetMonthlyRevenue = (targetMonthlyCat === 'ALL') ? (monthlyTotal[m] || 0) : (monthlyByType[m][targetMonthlyCat] || 0);
+                        const dailyAvg = Math.floor(targetMonthlyRevenue / daysInMonth);
+                        dailyAvgs.push(dailyAvg);
+
+                        let momText = '';
+                        if (idx > 0) {
+                            const prevM = sortedMonths[idx - 1];
+                            let prevMonthlyRevenue = (targetMonthlyCat === 'ALL') ? (monthlyTotal[prevM] || 0) : (monthlyByType[prevM][targetMonthlyCat] || 0);
+                            if (prevMonthlyRevenue > 0) {
+                                const momPercent = ((targetMonthlyRevenue - prevMonthlyRevenue) / prevMonthlyRevenue) * 100;
+                                const sign = momPercent >= 0 ? '+' : '';
+                                momText = `${sign}${momPercent.toFixed(1)}%`;
+                            }
+                        }
+                        momRates.push(momText);
+                    });
+
+                    const ctxDaily = document.getElementById('dailyAvgChart').getContext('2d');
+                    if (charts['dailyAvgChart']) charts['dailyAvgChart'].destroy();
+                    charts['dailyAvgChart'] = new Chart(ctxDaily, {
+                        type: 'line',
+                        data: {
+                            labels: sortedMonths,
+                            datasets: [{
+                                label: '1日平均売上 (円)',
+                                data: dailyAvgs,
+                                backgroundColor: 'rgba(245, 158, 11, 0.1)', 
+                                borderColor: 'rgba(245, 158, 11, 1)',
+                                borderWidth: 2,
+                                pointBackgroundColor: '#ffffff',
+                                pointBorderColor: 'rgba(245, 158, 11, 1)',
+                                pointBorderWidth: 2,
+                                pointRadius: 4,
+                                tension: 0.3, 
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: { 
+                                y: { beginAtZero: true, display: false }, 
+                                x: { display: true, grid: { display: false }, ticks: { font: { size: 10 } } } 
+                            },
+                            plugins: {
+                                legend: { display: false },
+                                datalabels: {
+                                    color: (context) => {
+                                        const rate = momRates[context.dataIndex];
+                                        if (rate && rate.startsWith('+')) return '#059669'; 
+                                        if (rate && rate.startsWith('-')) return '#DC2626'; 
+                                        return '#4B5563'; 
+                                    },
+                                    font: { weight: 'bold', size: 10 },
+                                    anchor: 'end',
+                                    align: 'top',
+                                    formatter: (value, context) => {
+                                        const rate = momRates[context.dataIndex];
+                                        return rate ? `¥${value}\n(${rate})` : `¥${value}`;
+                                    },
+                                    textAlign: 'center'
+                                }
+                            },
+                            layout: { padding: { top: 35, right: 20, left: 20 } }
+                        },
+                        plugins: [whiteBackgroundPlugin]
+                    });
+
+                } else {
+                    avgContainer.className = 'hidden';
+                }
+            }
+            // ▲▲▲ここまで追加▲▲▲
 
             // チャート描画続き
             const sortedItemsRev = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 10);
