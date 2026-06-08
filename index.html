@@ -37,7 +37,7 @@
         <div class="max-w-6xl mx-auto flex items-center justify-between px-4">
             <div class="flex items-center">
                 <img src="top-left.png" alt="シーサーアイコン" class="h-16 w-auto block object-contain">
-                <h1 class="text-lg md:text-xl font-bold ml-3 py-4">LINE Sales Analytics</h1>
+                <h1 class="text-lg md:text-xl font-bold ml-3 py-4">LINE Sales Analytics Pro</h1>
             </div>
             <div class="flex flex-col sm:flex-row items-end sm:items-center gap-2 sm:gap-4 py-2 sm:py-0">
                 <a href="https://aalinezipmaker.netlify.app/" target="_blank" rel="noopener noreferrer" class="text-xs md:text-sm font-bold text-white hover:text-green-100 transition no-underline whitespace-nowrap">
@@ -288,7 +288,52 @@
                 <div class="chart-container" style="height: 300px;"><canvas id="overseasCategoryRatioChart"></canvas></div>
             </div>
             
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2 space-y-4">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 gap-2">
+                    <h2 class="text-sm md:text-base font-bold text-gray-700 flex items-center gap-1">
+                        📊 カテゴリ別 売上推移
+                    </h2>
+                    <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <span class="text-xs font-bold text-gray-500 whitespace-nowrap">表示国:</span>
+                        <select id="categoryTrendCountrySelect" class="p-1.5 border border-gray-300 rounded-lg bg-gray-50 text-xs font-bold text-gray-700 cursor-pointer focus:ring-[#00C300] focus:border-[#00C300]">
+                            <option value="ALL">すべての国 (全国)</option>
+                        </select>
+                    </div>
+                </div>
 
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <div class="flex justify-between items-center border-b pb-1 mb-3">
+                            <h3 class="text-xs font-bold text-gray-600">🎨 スタンプ</h3>
+                            <button onclick="downloadChart('stickerTrendChart', 'スタンプ売上推移')" class="text-[10px] font-bold text-[#00C300] hover:text-[#009900] active:scale-95 transition">
+                                📥 保存
+                            </button>
+                        </div>
+                        <div class="chart-container" style="height: 180px;"><canvas id="stickerTrendChart"></canvas></div>
+                    </div>
+
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <div class="flex justify-between items-center border-b pb-1 mb-3">
+                            <h3 class="text-xs font-bold text-gray-600">✨ 絵文字</h3>
+                            <button onclick="downloadChart('emojiTrendChart', '絵文字売上推移')" class="text-[10px] font-bold text-[#00C300] hover:text-[#009900] active:scale-95 transition">
+                                📥 保存
+                            </button>
+                        </div>
+                        <div class="chart-container" style="height: 180px;"><canvas id="emojiTrendChart"></canvas></div>
+                    </div>
+
+                    <div class="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                        <div class="flex justify-between items-center border-b pb-1 mb-3">
+                            <h3 class="text-xs font-bold text-gray-600">👗 着せかえ</h3>
+                            <button onclick="downloadChart('themeTrendChart', '着せかえ売上推移')" class="text-[10px] font-bold text-[#00C300] hover:text-[#009900] active:scale-95 transition">
+                                📥 保存
+                            </button>
+                        </div>
+                        <div class="chart-container" style="height: 180px;"><canvas id="themeTrendChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
                 <h2 class="text-sm md:text-base font-bold mb-4 text-gray-700 border-b pb-2 flex items-center gap-2">
                     🤖 AI 売上簡易 analysis レポート
@@ -390,6 +435,7 @@
         const targetMonthRankSelect = document.getElementById('targetMonthRankSelect'); 
         const targetRevenueInput = document.getElementById('targetRevenueInput'); 
         const currentRevenueInput = document.getElementById('currentRevenueInput');
+        const categoryTrendCountrySelect = document.getElementById('categoryTrendCountrySelect');
         
         let globalData = []; 
         let availableMonths = [];
@@ -643,7 +689,8 @@
         countryItemRankSelect.addEventListener('change', () => { drawCountryItemRankChart(); });
         itemTrackSelect.addEventListener('change', () => { drawItemTrackChart(); }); 
         targetMonthRankSelect.addEventListener('change', () => { drawTargetMonthRankChart(); }); 
-        
+        categoryTrendCountrySelect.addEventListener('change', () => { renderDashboard(); });
+
         targetRevenueInput.addEventListener('input', updateTargetMeter);
         currentRevenueInput.addEventListener('input', updateTargetMeter);
 
@@ -774,6 +821,21 @@
             } else if (countryList.includes('JP')) {
                 countryItemRankSelect.value = 'JP'; 
             }
+            // ▼ここから追加：推移グラフ用の国プルダウン生成▼
+            const lastTrendCountrySelected = categoryTrendCountrySelect.value;
+            categoryTrendCountrySelect.innerHTML = '<option value="ALL">すべての国 (全国)</option>';
+            countryList.forEach(c => {
+                const option = document.createElement('option');
+                option.value = c;
+                option.textContent = c === 'JP' ? '日本 (JP)' : c === 'TW' ? '台湾 (TW)' : c === 'TH' ? 'タイ (TH)' : c;
+                categoryTrendCountrySelect.appendChild(option);
+            });
+            if (['ALL', ...countryList].includes(lastTrendCountrySelected)) {
+                categoryTrendCountrySelect.value = lastTrendCountrySelected;
+            } else {
+                categoryTrendCountrySelect.value = 'ALL';
+            }
+            // ▲ここまで追加▲
 
             const itemList = Object.keys(itemTotalRev).sort((a, b) => itemTotalRev[b] - itemTotalRev[a]);
             const lastTrackedItem = itemTrackSelect.value;
@@ -1106,6 +1168,41 @@
             } else {
                 trendArea.innerHTML = '<p class="text-xs text-gray-400">※2ヶ月分以上のデータを読み込むと分析結果が表示されます。</p>';
             }
+            // ▼ここから追加：カテゴリ別の推移グラフ描画（国別フィルタリング対応）▼
+            const targetTrendCountry = categoryTrendCountrySelect.value || 'ALL';
+            const trendMonthlyByType = {}; 
+            const sortedMonthsTrendAll = Object.keys(monthlyByType).sort();
+
+            globalData.forEach(row => {
+                const dateStr = row["From (GMT+9:00)"];
+                if (!dateStr) return;
+                const month = dateStr.substring(0, 7);
+                if (!selectedMonths.has(month)) return;
+
+                const country = row["Country of Sale"] || "不明";
+                if (targetTrendCountry !== 'ALL' && country !== targetTrendCountry) return;
+
+                const revenue = parseFloat(row["Revenue Share"]) || 0;
+                const type = row["Type"] || "不明";
+
+                if (!trendMonthlyByType[month]) trendMonthlyByType[month] = {};
+                trendMonthlyByType[month][type] = (trendMonthlyByType[month][type] || 0) + revenue;
+            });
+
+            const stickerData = sortedMonthsTrendAll.map(m => (trendMonthlyByType[m] && trendMonthlyByType[m]['Sticker']) ? trendMonthlyByType[m]['Sticker'] : 0);
+            const emojiData = sortedMonthsTrendAll.map(m => (trendMonthlyByType[m] && trendMonthlyByType[m]['Emoji']) ? trendMonthlyByType[m]['Emoji'] : 0);
+            const themeData = sortedMonthsTrendAll.map(m => (trendMonthlyByType[m] && trendMonthlyByType[m]['Theme']) ? trendMonthlyByType[m]['Theme'] : 0);
+
+            const trendOptions = { 
+                layout: { padding: { top: 20, right: 10 } }, 
+                scales: { y: { beginAtZero: true } },
+                plugins: { datalabels: { display: false } }
+            };
+
+            createChart('stickerTrendChart', 'bar', sortedMonthsTrendAll, stickerData, '収益 (円)', typeColors['Sticker'] || defaultColor, trendOptions);
+            createChart('emojiTrendChart', 'bar', sortedMonthsTrendAll, emojiData, '収益 (円)', typeColors['Emoji'] || defaultColor, trendOptions);
+            createChart('themeTrendChart', 'bar', sortedMonthsTrendAll, themeData, '収益 (円)', typeColors['Theme'] || defaultColor, trendOptions);
+            // ▲ここまで追加▲
             generateAIComment(); 
         }
 
