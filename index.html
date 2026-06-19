@@ -196,7 +196,7 @@
 
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                 <div class="flex justify-between items-center border-b pb-2 mb-4">
-                    <h2 class="text-sm md:text-base font-bold text-gray-700">👑 全体収益ランキング (Top 10)</h2>
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">👑 全体収益ランキング (Top 20)</h2>
                     <button onclick="downloadChart('itemChart', '全体収益ランキング')"
                         class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
                         📥 画像保存
@@ -207,7 +207,7 @@
 
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
                 <div class="flex justify-between items-center border-b pb-2 mb-4">
-                    <h2 class="text-sm md:text-base font-bold text-gray-700">🛍️ 全体販売数ランキング (Top 10)</h2>
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🛍️ 全体販売数ランキング (Top 20)</h2>
                     <button onclick="downloadChart('salesCountChart', '全体販売数ランキング')"
                         class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
                         📥 画像保存
@@ -241,7 +241,7 @@
 
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
                 <div class="flex justify-between items-center border-b pb-2 mb-4">
-                    <h2 class="text-sm md:text-base font-bold text-gray-700">📊 国別 売上ランキング (Top 10)</h2>
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">📊 国別 売上ランキング</h2>
                     <button onclick="downloadChart('countryRankChart', '国別売上ランキング')"
                         class="text-xs font-bold text-[#00C300] hover:text-[#009900] flex items-center gap-1 active:scale-95 transition">
                         📥 画像保存
@@ -263,7 +263,7 @@
 
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
                 <div class="flex justify-between items-center border-b pb-2 mb-4">
-                    <h2 class="text-sm md:text-base font-bold text-gray-700">🗺️ 国別詳細 アイテムランキング (Top 10)</h2>
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🗺️ 国別詳細 アイテムランキング (Top 20)</h2>
                     <div class="flex items-center gap-3">
                         <button
                             onclick="downloadChart('countryItemRankChart', '国別詳細アイテムランキング_' + document.getElementById('countryItemRankSelect').value)"
@@ -280,7 +280,7 @@
 
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
                 <div class="flex justify-between items-center border-b pb-2 mb-4">
-                    <h2 class="text-sm md:text-base font-bold text-gray-700">🏆 カテゴリ別 売上ランキング (Top 10)</h2>
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🏆 カテゴリ別 売上ランキング (Top 20)</h2>
                     <div class="flex items-center gap-3">
                         <button
                             onclick="downloadChart('categoryRankChart', 'カテゴリ別売上ランキング_' + document.getElementById('categoryRankSelect').value)"
@@ -298,7 +298,7 @@
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2 space-y-4">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-2 gap-2">
                     <h2 class="text-sm md:text-base font-bold text-gray-700 flex items-center gap-1">
-                        🏆 月別 人気ランキング (Top 10)
+                        🏆 月別 人気ランキング (Top 20)
                     </h2>
                     <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
                         <span class="text-xs font-bold text-gray-500 whitespace-nowrap">表示月:</span>
@@ -386,7 +386,7 @@
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
                 <div class="flex justify-between items-center border-b pb-2 mb-4">
-                    <h2 class="text-sm md:text-base font-bold text-gray-700">🗓️ 指定月の売上総合ランキング (Top 10)</h2>
+                    <h2 class="text-sm md:text-base font-bold text-gray-700">🗓️ 指定月の売上総合ランキング (Top 20)</h2>
                     <div class="flex items-center gap-3">
                         <button
                             onclick="downloadChart('targetMonthRankChart', '指定月総合ランキング_' + document.getElementById('targetMonthRankSelect').value)"
@@ -477,7 +477,7 @@
 
             <div class="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
                 <h2 class="text-sm md:text-base font-bold mb-4 text-gray-700 border-b pb-2 flex items-center gap-2">
-                    🤖 AI 売上簡易分析レポート
+                    🤖 AI 売上簡易 analysis レポート
                 </h2>
                 <div id="aiAnalysisComment" class="text-sm text-gray-600 leading-relaxed">
                     <p class="text-gray-400">※CSVファイルを読み込むと、ここにデータの集計結果に基づいた簡易分析レポートが自動生成されます。</p>
@@ -495,7 +495,6 @@
             Rights Reserved.<a href="https://note.com/arakakiai_works" target="_blank">🗒️</a></p>
         <img src="bottom-right.png" alt="シーサーロゴ" class="h-9 w-auto object-contain block">
     </footer>
-
     <script>
         let numbersHidden = false;
 
@@ -1338,12 +1337,12 @@
                 }
             }
 
-            const sortedItemsRev = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 10);
+            const sortedItemsRev = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 20);
             const itemRevBgColors = sortedItemsRev.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].bg : defaultColor.bg);
             const itemRevBorderColors = sortedItemsRev.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].border : defaultColor.border);
             createChart('itemChart', 'bar', sortedItemsRev, sortedItemsRev.map(i => itemsRev[i]), '収益 (円)', { bg: itemRevBgColors, border: itemRevBorderColors }, { indexAxis: 'y', layout: { padding: { right: 50 } } });
 
-            const sortedItemsCount = Object.keys(itemsCount).sort((a, b) => itemsCount[b] - itemsCount[a]).slice(0, 10);
+            const sortedItemsCount = Object.keys(itemsCount).sort((a, b) => itemsCount[b] - itemsCount[a]).slice(0, 20);
             const itemCountBgColors = sortedItemsCount.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].bg : defaultColor.bg);
             const itemCountBorderColors = sortedItemsCount.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].border : defaultColor.border);
             createChart('salesCountChart', 'bar', sortedItemsCount, sortedItemsCount.map(i => itemsCount[i]), '販売数', { bg: itemCountBgColors, border: itemCountBorderColors }, { indexAxis: 'y', layout: { padding: { right: 40 } } });
@@ -1354,7 +1353,8 @@
             const typeLabels = Object.keys(types).sort((a, b) => types[b] - types[a]);
             createChart('typeChart', 'pie', typeLabels, typeLabels.map(t => types[t]), '種類別', { bg: ['#8B5CF6', '#EC4899', '#6366F1'], border: '#ffffff' });
 
-            const sortedCountries = Object.keys(countries).sort((a, b) => countries[b] - countries[a]).slice(0, 10);
+            // 国別売上ランキング：件数制限を排除（実績のある国のみ全て出力）
+            const sortedCountries = Object.keys(countries).sort((a, b) => countries[b] - countries[a]);
             createChart('countryRankChart', 'bar', sortedCountries, sortedCountries.map(c => countries[c]), '収益 (円)', { bg: 'rgba(59, 130, 246, 0.7)', border: 'rgba(59, 130, 246, 1)' }, { indexAxis: 'y', layout: { padding: { right: 50 } } });
 
             const catLabels = Object.keys(types).sort((a, b) => types[b] - types[a]);
@@ -1525,14 +1525,13 @@
 
             generateAIComment();
         }
-
         function drawCategoryRankChart() {
             const targetType = categoryRankSelect.value;
             if (!targetType || !currentItemsRevByType[targetType]) return;
 
             const itemsRev = currentItemsRevByType[targetType];
             const itemsCount = currentItemsCountByType[targetType] || {};
-            const sortedItems = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 10);
+            const sortedItems = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 20);
 
             const dataRev = sortedItems.map(i => itemsRev[i]);
             const dataCount = sortedItems.map(i => itemsCount[i] || 0);
@@ -1548,7 +1547,7 @@
 
             const itemsRev = currentItemsRevByCountry[targetCountry];
             const itemsCount = currentItemsCountByCountry[targetCountry] || {};
-            const sortedItems = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 10);
+            const sortedItems = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 20);
 
             const dataRev = sortedItems.map(i => itemsRev[i]);
             const dataCount = sortedItems.map(i => itemsCount[i] || 0);
@@ -1659,7 +1658,7 @@
 
             const itemsRev = globalItemRevByMonthAndTitle[targetMonth];
             const itemsCount = globalItemCountByMonthAndTitle[targetMonth] || {};
-            const sortedItems = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 10);
+            const sortedItems = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 20);
 
             const dataRev = sortedItems.map(i => itemsRev[i]);
             const dataCount = sortedItems.map(i => itemsCount[i] || 0);
@@ -1696,7 +1695,7 @@
             const drawRankChart = (type, canvasId) => {
                 const items = typeRevs[type];
                 const counts = typeCounts[type];
-                const sortedItems = Object.keys(items).sort((a, b) => items[b] - items[a]).slice(0, 10);
+                const sortedItems = Object.keys(items).sort((a, b) => items[b] - items[a]).slice(0, 20);
 
                 const dataValues = sortedItems.map(i => items[i]);
                 const dataCount = sortedItems.map(i => counts[i] || 0);
