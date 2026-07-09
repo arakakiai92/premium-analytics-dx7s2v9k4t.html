@@ -843,8 +843,35 @@
                     header: true,
                     skipEmptyLines: true,
                     complete: function (results) {
-                        parsedData = parsedData.concat(results.data);
+                        // 読み込んだ段階で、日本語や確定前のヘッダーをアプリが理解できる英語ヘッダーに変換する
+                        const normalizedData = results.data.map(row => {
+                            let date = row["From (GMT+9:00)"] || row["Date"] || row["日付"] || row["売上日"] || "";
+                            // スラッシュ区切り（2026/07）をハイフン（2026-07）に統一
+                            date = date.replace(/\//g, '-');
+
+                            let country = row["Country of Sale"] || row["Country"] || row["販売国"] || "JP";
+                            let type = row["Type"] || row["タイプ"] || row["カテゴリ"] || "Sticker";
+
+                            // タイプの表記揺れを統一
+                            if (type === 'スタンプ') type = 'Sticker';
+                            if (type === '絵文字') type = 'Emoji';
+                            if (type === '着せかえ' || type === '着せ替え') type = 'Theme';
+
+                            return {
+                                ...row,
+                                "From (GMT+9:00)": date,
+                                "Revenue Share": row["Revenue Share"] || row["Revenue"] || row["分配金"] || row["売上額"] || "0",
+                                "Sales Counts": row["Sales Counts"] || row["Sales"] || row["販売数"] || row["ダウンロード数"] || "0",
+                                "Country of Sale": country,
+                                "Type": type,
+                                "Item ID": row["Item ID"] || row["アイテムID"] || "",
+                                "Item Title": row["Item Title"] || row["アイテム名"] || "不明"
+                            };
+                        });
+
+                        parsedData = parsedData.concat(normalizedData);
                         filesRead++;
+
                         if (filesRead === files.length) {
                             globalData = parsedData;
                             localforage.setItem('lineSalesData', globalData);
