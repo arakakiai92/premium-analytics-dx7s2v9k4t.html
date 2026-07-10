@@ -146,6 +146,7 @@
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-[#00C300]">
                 <p class="text-xs text-gray-500 font-bold">総収益 (分配金総額)</p>
                 <p class="text-xl md:text-2xl font-black text-gray-800 mt-1" id="kpiRevenue">¥0</p>
+                <p class="text-[10px] text-green-600 font-bold mt-1 hidden" id="kpiPremiumRevenue">(うちPremium: ¥0)</p>
             </div>
             <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-200 border-l-4 border-l-blue-500">
                 <p class="text-xs text-gray-500 font-bold">期間中累計推定手取り</p>
@@ -420,7 +421,7 @@
                     <h2 class="text-sm md:text-base font-bold text-gray-700">🌍 直近半年のカテゴリ比率 (海外限定)</h2>
                     <button onclick="downloadChart('overseasCategoryRatioChart', '海外限定_カテゴリ比率')"
                         class="text-xs font-bold text-[#00C300] hover:text-[#009900] active:scale-95 transition">
-                        📥 画像保存
+                        📥 保存
                     </button>
                 </div>
                 <div class="chart-container" style="height: 300px;"><canvas id="overseasCategoryRatioChart"></canvas>
@@ -662,6 +663,9 @@
         let globalItemTypes = {};
         let globalMonthlyTotal = {};
 
+        // 通常販売 vs Premium の内訳保持用
+        let globalItemDetailByMonthAndTitle = {};
+
         const typeColors = {
             "Sticker": { bg: "rgba(236, 72, 153, 0.8)", border: "rgba(236, 72, 153, 1)" },
             "Emoji": { bg: "rgba(139, 92, 246, 0.8)", border: "rgba(139, 92, 246, 1)" },
@@ -742,6 +746,9 @@
 
             const isHorizontal = extraOptions.indexAxis === 'y';
 
+            // Premium専用アイテムランキング等の表示最適化チェック
+            const isPremiumTarget = (canvasId === 'countryItemRankChart' && document.getElementById('countryItemRankSelect')?.value === 'Premium(定額制)');
+
             const config = {
                 type: type,
                 data: {
@@ -794,9 +801,22 @@
                             align: 'end',
                             formatter: (value, context) => {
                                 if (value === 0) return '';
-                                let text = isSalesCount ? value.toLocaleString() + '件' : '¥' + Math.floor(value).toLocaleString();
+                                if (isSalesCount) return value.toLocaleString() + '件';
+
+                                let text = '¥' + Math.floor(value).toLocaleString();
+
+                                // 修正点3 & 5: Premium選択時または件数が0の場合は件数表記を隠す/切り替える
+                                if (isPremiumTarget) {
+                                    return text + ' (Premium)';
+                                }
+
                                 if (countData && countData[context.dataIndex] !== undefined) {
-                                    text += ' / ' + countData[context.dataIndex].toLocaleString() + '件';
+                                    const countVal = countData[context.dataIndex];
+                                    if (countVal > 0) {
+                                        text += ' / ' + countVal.toLocaleString() + '件';
+                                    } else {
+                                        text += ' / Premium';
+                                    }
                                 }
                                 return text;
                             }
@@ -807,7 +827,8 @@
             };
             charts[canvasId] = new Chart(ctx, config);
         }
-        // 画面起動時の自動キャッシュ復元処理（マスタデータ復元を除外）
+
+        // 画面起動時の自動キャッシュ復元処理
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const cachedData = await localforage.getItem('lineSalesData');
@@ -843,16 +864,13 @@
                     header: true,
                     skipEmptyLines: true,
                     complete: function (results) {
-                        // 読み込んだ段階で、日本語や確定前のヘッダーをアプリが理解できる英語ヘッダーに変換する
                         const normalizedData = results.data.map(row => {
                             let date = row["From (GMT+9:00)"] || row["Date"] || row["日付"] || row["売上日"] || "";
-                            // スラッシュ区切り（2026/07）をハイフン（2026-07）に統一
                             date = date.replace(/\//g, '-');
 
                             let country = row["Country of Sale"] || row["Country"] || row["販売国"] || "JP";
                             let type = row["Type"] || row["タイプ"] || row["カテゴリ"] || "Sticker";
 
-                            // タイプの表記揺れを統一
                             if (type === 'スタンプ') type = 'Sticker';
                             if (type === '絵文字') type = 'Emoji';
                             if (type === '着せかえ' || type === '着せ替え') type = 'Theme';
@@ -910,7 +928,12 @@
                     years.add(dateStr.substring(0, 4));
                 }
                 if (row["Type"]) types.add(row["Type"]);
-                if (row["Country of Sale"]) countriesSet.add(row["Country of Sale"]);
+
+                let country = row["Country of Sale"] || "JP";
+                if (country.trim().toLowerCase() === "premium") {
+                    country = "Premium(定額制)";
+                }
+                if (country) countriesSet.add(country.trim());
 
                 if (row["Item ID"]) {
                     const title = row["Item Title"] || "不明";
@@ -1097,9 +1120,11 @@
                 }
             });
         }
+
         function renderDashboard() {
             let totalRevenue = 0;
             let totalSalesCount = 0;
+            let totalPremiumRevenue = 0; // 修正点2: Premium合計計算用
 
             const monthlyByType = {};
             const monthlyTotal = {};
@@ -1112,6 +1137,7 @@
 
             const monthlyJpRev = {};
             const monthlyOverseasRev = {};
+            const monthlyPremiumRev = {}; // 修正点1: 3軸推移用の保持データ
             const monthlyOverseasByType = {};
 
             currentItemsRevByType = {};
@@ -1122,6 +1148,7 @@
             globalItemCountByMonthAndTitle = {};
             globalItemTypes = {};
             globalMonthlyTotal = {};
+            globalItemDetailByMonthAndTitle = {}; // 修正点6: ウォッチリスト内訳用
 
             globalData.forEach(row => {
                 const dateStr = row["From (GMT+9:00)"];
@@ -1139,15 +1166,21 @@
                 const title = row["Item Title"] || "不明";
                 let country = row["Country of Sale"] || "不明";
                 const type = row["Type"] || "不明";
+                let isPremium = false;
 
                 if (country.trim().toLowerCase() === "premium") {
                     country = "Premium(定額制)";
+                    isPremium = true;
+                    totalPremiumRevenue += revenue;
                 } else if (country.trim() !== "") {
                     country = country.trim();
                 }
 
+                // 修正点1: 国内・海外・Premiumの3軸切り分け
                 if (country === 'JP') {
                     monthlyJpRev[month] = (monthlyJpRev[month] || 0) + revenue;
+                } else if (isPremium) {
+                    monthlyPremiumRev[month] = (monthlyPremiumRev[month] || 0) + revenue;
                 } else {
                     monthlyOverseasRev[month] = (monthlyOverseasRev[month] || 0) + revenue;
                     if (!monthlyOverseasByType[month]) monthlyOverseasByType[month] = {};
@@ -1182,6 +1215,17 @@
                 globalItemRevByMonthAndTitle[month][title] = (globalItemRevByMonthAndTitle[month][title] || 0) + revenue;
                 if (!globalItemCountByMonthAndTitle[month]) globalItemCountByMonthAndTitle[month] = {};
                 globalItemCountByMonthAndTitle[month][title] = (globalItemCountByMonthAndTitle[month][title] || 0) + count;
+
+                // 修正点6: 特定月のアイテム別内訳保持
+                if (!globalItemDetailByMonthAndTitle[month]) globalItemDetailByMonthAndTitle[month] = {};
+                if (!globalItemDetailByMonthAndTitle[month][title]) {
+                    globalItemDetailByMonthAndTitle[month][title] = { normal: 0, premium: 0 };
+                }
+                if (isPremium) {
+                    globalItemDetailByMonthAndTitle[month][title].premium += revenue;
+                } else {
+                    globalItemDetailByMonthAndTitle[month][title].normal += revenue;
+                }
             });
 
             const totalRevFloor = Math.floor(totalRevenue);
@@ -1191,6 +1235,15 @@
             document.getElementById('kpiRevenue').textContent = `¥${totalRevFloor.toLocaleString()}`;
             document.getElementById('kpiNetRevenue').textContent = `¥${netRevenue.toLocaleString()}`;
             document.getElementById('kpiSalesCount').textContent = totalSalesCount.toLocaleString();
+
+            // 修正点2: KPIエリアへ小さく「うちPremium: ¥〇〇」を表示
+            const premiumKpiLabel = document.getElementById('kpiPremiumRevenue');
+            if (totalPremiumRevenue > 0) {
+                premiumKpiLabel.textContent = `(うちPremium: ¥${Math.floor(totalPremiumRevenue).toLocaleString()})`;
+                premiumKpiLabel.classList.remove('hidden');
+            } else {
+                premiumKpiLabel.classList.add('hidden');
+            }
 
             const topItem = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a])[0];
             const kpiLink = document.getElementById('kpiTopItem');
@@ -1369,7 +1422,10 @@
             const sortedItemsRev = Object.keys(itemsRev).sort((a, b) => itemsRev[b] - itemsRev[a]).slice(0, 20);
             const itemRevBgColors = sortedItemsRev.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].bg : defaultColor.bg);
             const itemRevBorderColors = sortedItemsRev.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].border : defaultColor.border);
-            createChart('itemChart', 'bar', sortedItemsRev, sortedItemsRev.map(i => itemsRev[i]), '収益 (円)', { bg: itemRevBgColors, border: itemRevBorderColors }, { indexAxis: 'y', layout: { padding: { right: 50 } } });
+
+            // 修正点3: 全体収益ランキングに販売件数内訳を渡す
+            const itemRevCounts = sortedItemsRev.map(i => itemsCount[i] || 0);
+            createChart('itemChart', 'bar', sortedItemsRev, sortedItemsRev.map(i => itemsRev[i]), '収益 (円)', { bg: itemRevBgColors, border: itemRevBorderColors }, { indexAxis: 'y', layout: { padding: { right: 85 } } }, itemRevCounts);
 
             const sortedItemsCount = Object.keys(itemsCount).sort((a, b) => itemsCount[b] - itemsCount[a]).slice(0, 20);
             const itemCountBgColors = sortedItemsCount.map(title => typeColors[globalItemTypes[title]] ? typeColors[globalItemTypes[title]].bg : defaultColor.bg);
@@ -1382,7 +1438,6 @@
             const typeLabels = Object.keys(types).sort((a, b) => types[b] - types[a]);
             createChart('typeChart', 'pie', typeLabels, typeLabels.map(t => types[t]), '種類別', { bg: ['#8B5CF6', '#EC4899', '#6366F1'], border: '#ffffff' });
 
-            // 国別売上ランキング：件数制限を排除（実績のある国のみ全て出力）
             const sortedCountries = Object.keys(countries).sort((a, b) => countries[b] - countries[a]);
             createChart('countryRankChart', 'bar', sortedCountries, sortedCountries.map(c => countries[c]), '収益 (円)', { bg: 'rgba(59, 130, 246, 0.7)', border: 'rgba(59, 130, 246, 1)' }, { indexAxis: 'y', layout: { padding: { right: 50 } } });
 
@@ -1430,9 +1485,11 @@
                 trendArea.innerHTML = '<p class="text-xs text-gray-400">※2ヶ月分以上のデータを読み込むと分析結果が表示されます。</p>';
             }
 
+            // 修正点1: 「国内 vs 海外 売上推移」グラフの3軸化 (日本 / 海外 / Premium)
             const jpOvLabels = Object.keys(monthlyTotal).sort();
             const dataJp = jpOvLabels.map(m => monthlyJpRev[m] || 0);
             const dataOverseas = jpOvLabels.map(m => monthlyOverseasRev[m] || 0);
+            const dataPremium = jpOvLabels.map(m => monthlyPremiumRev[m] || 0);
 
             const ctxJpOv = document.getElementById('jpVsOverseasChart').getContext('2d');
             if (charts['jpVsOverseasChart']) charts['jpVsOverseasChart'].destroy();
@@ -1442,7 +1499,8 @@
                     labels: jpOvLabels,
                     datasets: [
                         { label: '日本 (JP)', data: dataJp, backgroundColor: 'rgba(59, 130, 246, 0.8)', borderColor: 'rgba(59, 130, 246, 1)', borderWidth: 1 },
-                        { label: '海外 (Overseas)', data: dataOverseas, backgroundColor: 'rgba(16, 185, 129, 0.8)', borderColor: 'rgba(16, 185, 129, 1)', borderWidth: 1 }
+                        { label: '海外 (Overseas)', data: dataOverseas, backgroundColor: 'rgba(16, 185, 129, 0.8)', borderColor: 'rgba(16, 185, 129, 1)', borderWidth: 1 },
+                        { label: 'Premium (定額制)', data: dataPremium, backgroundColor: 'rgba(234, 179, 8, 0.8)', borderColor: 'rgba(234, 179, 8, 1)', borderWidth: 1 }
                     ]
                 },
                 options: {
@@ -1467,6 +1525,7 @@
                 plugins: [whiteBackgroundPlugin]
             });
 
+            // 海外比率グラフからはPremiumを除外（純粋な海外限定）
             const overseasMonthsAll = Object.keys(monthlyOverseasByType).sort();
             const recentOverseasMonths = overseasMonthsAll.slice(-6);
 
@@ -1528,7 +1587,9 @@
                 const month = dateStr.substring(0, 7);
                 if (!selectedMonths.has(month)) return;
 
-                const country = row["Country of Sale"] || "不明";
+                let country = row["Country of Sale"] || "不明";
+                if (country.trim().toLowerCase() === "premium") country = "Premium(定額制)";
+
                 if (targetTrendCountry !== 'ALL' && country !== targetTrendCountry) return;
 
                 const revenue = parseFloat(row["Revenue Share"]) || 0;
@@ -1554,6 +1615,7 @@
 
             generateAIComment();
         }
+
         function drawCategoryRankChart() {
             const targetType = categoryRankSelect.value;
             if (!targetType || !currentItemsRevByType[targetType]) return;
@@ -1598,7 +1660,31 @@
             const itemType = globalItemTypes[targetItem];
             const color1 = typeColors[itemType] || { bg: 'rgba(139, 92, 246, 0.7)', border: 'rgba(139, 92, 246, 1)' };
 
-            createChart('itemTrackChart', 'bar', sortedMonths, dataRev, '収益 (円)', color1, { layout: { padding: { top: 25 } }, scales: { y: { beginAtZero: true } } }, dataCount);
+            // 修正点6: ウォッチリストのグラフツールチップ内訳表示を最適化
+            const extraTrackOptions = {
+                layout: { padding: { top: 25 } },
+                scales: { y: { beginAtZero: true } },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const month = context.label;
+                                const title = itemTrackSelect.value;
+                                const val = context.raw;
+                                let basicLabel = '総収益: ¥' + Math.floor(val).toLocaleString();
+
+                                if (globalItemDetailByMonthAndTitle[month] && globalItemDetailByMonthAndTitle[month][title]) {
+                                    const details = globalItemDetailByMonthAndTitle[month][title];
+                                    basicLabel += ` (通常: ¥${Math.floor(details.normal).toLocaleString()} / Premium: ¥${Math.floor(details.premium).toLocaleString()})`;
+                                }
+                                return basicLabel;
+                            }
+                        }
+                    }
+                }
+            };
+
+            createChart('itemTrackChart', 'bar', sortedMonths, dataRev, '収益 (円)', color1, extraTrackOptions, dataCount);
         }
 
         function updateItemDetailYears() {
@@ -1773,10 +1859,14 @@
 
             let aiTotalRevenue = 0;
             let aiTotalSalesCount = 0;
+            let aiTotalPremiumRevenue = 0; // 修正点7用
             const aiItemsRev = {};
             const aiTypes = {};
             const aiCountries = {};
             const aiMonthlyTotal = {};
+
+            // Premiumでの個別アイテム収益
+            const aiPremiumItemsRev = {};
 
             globalData.forEach(row => {
                 const dateStr = row["From (GMT+9:00)"];
@@ -1792,14 +1882,29 @@
                 const count = parseInt(row["Sales Counts"]) || 0;
 
                 const title = row["Item Title"] || "不明";
-                const country = row["Country of Sale"] || "不明";
+                let country = row["Country of Sale"] || "不明";
                 const type = row["Type"] || "不明";
+
+                let isPremium = false;
+                if (country.trim().toLowerCase() === "premium") {
+                    country = "Premium(定額制)";
+                    isPremium = true;
+                    aiTotalPremiumRevenue += revenue;
+                    aiPremiumItemsRev[title] = (aiPremiumItemsRev[title] || 0) + revenue;
+                } else {
+                    country = country.trim();
+                }
 
                 aiTotalRevenue += revenue;
                 aiTotalSalesCount += count;
                 aiItemsRev[title] = (aiItemsRev[title] || 0) + revenue;
                 aiTypes[type] = (aiTypes[type] || 0) + revenue;
-                aiCountries[country] = (aiCountries[country] || 0) + revenue;
+
+                // 修正点4: 国別集計から「Premium(定額制)」を除外
+                if (!isPremium) {
+                    aiCountries[country] = (aiCountries[country] || 0) + revenue;
+                }
+
                 aiMonthlyTotal[month] = (aiMonthlyTotal[month] || 0) + revenue;
             });
 
@@ -1815,6 +1920,7 @@
             const topType = Object.keys(aiTypes).sort((a, b) => aiTypes[b] - aiTypes[a])[0];
             const topTypeJa = topType === 'Sticker' ? 'スタンプ' : topType === 'Emoji' ? '絵文字' : topType === 'Theme' ? '着せかえ' : topType;
 
+            // 修正点4: 純粋な海外エリア（TW、THなど）のみからトップを判定
             const topCountry = Object.keys(aiCountries).sort((a, b) => aiCountries[b] - aiCountries[a])[0];
             const countryNames = { 'JP': '日本', 'TW': '台湾', 'TH': 'タイ', 'ID': 'インドネシア' };
             const topCountryJa = countryNames[topCountry] || topCountry;
@@ -1871,6 +1977,20 @@
                 countryAdviceHtml = `<p>現在【<strong class="text-gray-900">${topCountryJa}市場</strong>】が大きなシェアを占めています。文字を含まない「表情や動きだけで伝わるジェスチャー」や、現地の日常会話をリサーチして取り入れることで、グローバルな売上をさらに拡大させるポテンシャルを秘めています。</p>`;
             }
 
+            // 修正点7: AIレポートによる「Premium成長の自動検知」アドバイスブロック
+            let premiumAdviceHtml = "";
+            if (aiTotalRevenue > 0) {
+                const premiumRatio = (aiTotalPremiumRevenue / aiTotalRevenue) * 100;
+                if (premiumRatio >= 2.0) { // 収益全体の2%以上を占めるようになったら自動検知してアドバイスを差し込む
+                    const topPremiumItem = Object.keys(aiPremiumItemsRev).sort((a, b) => aiPremiumItemsRev[b] - aiPremiumItemsRev[a])[0] || "該当アイテム";
+                    premiumAdviceHtml = `
+                    <div class="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200 text-xs">
+                        <p class="font-bold text-yellow-700 text-sm mb-1">🎯 Premium (定額制) 成長自動検知レポート</p>
+                        <p>現在、総収益の <strong class="text-gray-950">${premiumRatio.toFixed(1)}%</strong> がPremium分配金から発生しており、収益の安定基盤として育ち始めています。定額制ユーザーは「日常的で使い勝手がよく、何度も送りたくなる表現」を多用する傾向があります。特にPremiumで最も好調な『<strong class="text-gray-950">${topPremiumItem}</strong>』のトーンや絵柄の要素をスピンオフや新作に横展開することで、定額制ユーザー内での利用頻度をさらに高め、分配金のベースを大きく押し上げることが可能です。</p>
+                    </div>`;
+                }
+            }
+
             let html = `
                 <div class="p-4 bg-green-50 rounded-xl border border-green-100 text-gray-700 space-y-4 relative overflow-hidden">
                     <div class="absolute top-0 right-0 bg-green-200 text-green-800 text-[10px] font-bold px-2 py-1 rounded-bl-lg opacity-80 shadow-sm">
@@ -1890,6 +2010,8 @@
                         <p class="font-bold text-[#00C300] text-base mb-1">🌏 エリア・マーケティングへの提言</p>
                         ${countryAdviceHtml}
                     </div>
+                    
+                    ${premiumAdviceHtml}
 
                     <div class="pt-2 border-t border-green-100">
                         <p class="font-bold text-[#00C300] text-sm mb-1 mt-2">🚀 次の一手としての推奨アクション</p>
